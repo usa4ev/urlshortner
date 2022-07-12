@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -53,7 +55,16 @@ func Test_rootHandler(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Route("/", chiRouter)
-	ts := httptest.NewServer(r)
+
+	l, err := net.Listen("tcp", "localhost:8080")
+	if err != nil {
+		panic(fmt.Sprintf("httptest: failed to listen on %v: %v", "localhost:8080", err))
+	}
+
+	ts := httptest.NewUnstartedServer(r)
+	ts.Listener = l
+	ts.Start()
+
 	cl := ts.Client()
 	cl.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
