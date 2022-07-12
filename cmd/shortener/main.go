@@ -31,7 +31,7 @@ func makeShort(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := shortner.ShortURL(string(URL))
-
+	w.WriteHeader(http.StatusCreated)
 	_, err = io.WriteString(w, strconv.Itoa(id))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

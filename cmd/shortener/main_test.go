@@ -87,14 +87,12 @@ func Test_rootHandler(t *testing.T) {
 			continue
 		}
 		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			t.Errorf("failed reading response when filling data: %v", err.Error())
-		}
+		require.NoError(t, err)
+		err = res.Body.Close()
+		require.NoError(t, err)
 		if string(body) != s.id {
 			t.Errorf("failed when filling test data. Expecded id %v, got %v", s.id, string(body))
 		}
-		err = res.Body.Close()
-		require.NoError(t, err)
 	}
 
 	for _, tt := range tests {
@@ -108,9 +106,9 @@ func Test_rootHandler(t *testing.T) {
 
 				body, err := io.ReadAll(res.Body)
 				require.NoError(t, err)
-				assert.Equal(t, tt.want.response, string(body))
 				err = res.Body.Close()
 				require.NoError(t, err)
+				assert.Equal(t, tt.want.response, string(body))
 			}
 		})
 	}
