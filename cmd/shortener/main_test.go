@@ -82,7 +82,7 @@ func Test_rootHandler(t *testing.T) {
 	for _, s := range d {
 		res, err := cl.Post(host, "text/plain", bytes.NewBuffer([]byte(s.url)))
 		require.NoError(t, err)
-		if res.StatusCode != http.StatusOK {
+		if res.StatusCode != http.StatusCreated {
 			t.Errorf("failed when filling test data, returned %v", res.StatusCode)
 			continue
 		}
@@ -90,8 +90,9 @@ func Test_rootHandler(t *testing.T) {
 		require.NoError(t, err)
 		err = res.Body.Close()
 		require.NoError(t, err)
-		if string(body) != s.id {
-			t.Errorf("failed when filling test data. Expecded id %v, got %v", s.id, string(body))
+		expectedRes := host + "/" + s.id
+		if string(body) != expectedRes {
+			t.Errorf("failed when filling test data. Expecded id %v, got %v", expectedRes, string(body))
 		}
 	}
 
