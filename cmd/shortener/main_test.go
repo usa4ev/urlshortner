@@ -40,7 +40,7 @@ func Test_rootHandler(t *testing.T) {
 		{"ok",
 			args{id: "1"},
 			want{"",
-				301},
+				307},
 		},
 		{"id is not int",
 			args{id: "b"},

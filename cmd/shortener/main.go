@@ -55,5 +55,5 @@ func makeLong(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	http.Redirect(w, r, redirect, http.StatusMovedPermanently)
+	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
