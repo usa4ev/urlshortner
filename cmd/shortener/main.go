@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/go-chi/chi"
-	shortner "github.com/usa4ev/urlshortner/internal/app"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/go-chi/chi"
+	shortner "github.com/usa4ev/urlshortner/internal/app"
 )
 
 func main() {

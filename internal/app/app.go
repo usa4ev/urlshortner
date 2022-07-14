@@ -1,22 +1,25 @@
 package app
 
-var urlMap map[int]string
-var i int
+var (
+	urlMap map[int]string
+	i      int
+)
 
-func ShortURL(URL string) int {
-
+func ShortURL(url string) int {
 	if urlMap == nil {
 		urlMap = make(map[int]string)
 	}
 
 	for i, v := range urlMap {
-		if v == URL {
+		if v == url {
 			return i
 		}
 	}
 
 	i++
-	urlMap[i] = URL
+
+	urlMap[i] = url
+
 	return i
 }
 

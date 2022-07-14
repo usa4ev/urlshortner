@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/go-chi/chi"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var host string
@@ -72,6 +73,8 @@ func Test_rootHandler(t *testing.T) {
 	host = ts.URL
 	defer ts.Close()
 	res, err := cl.Get(host + "/1")
+	require.NoError(t, err)
+	err = res.Body.Close()
 	require.NoError(t, err)
 
 	if res.StatusCode != http.StatusNotFound {
