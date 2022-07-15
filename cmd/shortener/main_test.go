@@ -33,26 +33,35 @@ func Test_rootHandler(t *testing.T) {
 		args args
 		want want
 	}{
-		{"wrong id",
+		{
+			"wrong id",
 			args{id: "5"},
-			want{"",
-				404},
+			want{
+				"",
+				404,
+			},
 		},
-		{"ok",
+		{
+			"ok",
 			args{id: "1"},
-			want{"",
-				307},
+			want{
+				"",
+				307,
+			},
 		},
-		{"id is not int",
+		{
+			"id is not int",
 			args{id: "b"},
-			want{"id must be an integer\n",
-				400},
+			want{
+				"id must be an integer\n",
+				400,
+			},
 		},
 	}
-	d := data{{"1", host + "/test"},
-		{"2", host + "/test2"}}
-
-	//check if it works fine with empty db
+	d := data{
+		{"1", host + "/test"},
+		{"2", host + "/test2"},
+	}
 
 	r := chi.NewRouter()
 	r.Route("/", chiRouter)
@@ -81,7 +90,6 @@ func Test_rootHandler(t *testing.T) {
 		t.Errorf("failed before data added, returned %v", res.StatusCode)
 	}
 
-	//filling test data
 	for _, s := range d {
 		res, err := cl.Post(host, "text/plain", bytes.NewBuffer([]byte(s.url)))
 		require.NoError(t, err)
@@ -100,14 +108,12 @@ func Test_rootHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := cl.Get(host + "/" + tt.args.id)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.code, res.StatusCode)
 			if tt.want.response != "" {
-
 				body, err := io.ReadAll(res.Body)
 				require.NoError(t, err)
 				err = res.Body.Close()

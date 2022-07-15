@@ -1,28 +1,31 @@
 package app
 
-var (
-	urlMap map[int]string
-	i      int
+type (
+	urlMap  map[int]string
+	Storage struct {
+		urlMap urlMap
+		id     int
+	}
 )
 
-func ShortURL(url string) int {
-	if urlMap == nil {
-		urlMap = make(map[int]string)
-	}
+func NewStorage() *Storage {
+	return &Storage{make(urlMap), 0}
+}
 
-	for i, v := range urlMap {
+func ShortURL(url string, storage *Storage) int {
+	for id, v := range storage.urlMap {
 		if v == url {
-			return i
+			return id
 		}
 	}
 
-	i++
+	storage.id++
 
-	urlMap[i] = url
+	storage.urlMap[storage.id] = url
 
-	return i
+	return storage.id
 }
 
-func GetPath(id int) string {
-	return urlMap[id]
+func GetPath(id int, storage *Storage) string {
+	return storage.urlMap[id]
 }
