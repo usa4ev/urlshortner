@@ -15,6 +15,7 @@ type MyShortener struct {
 func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	URL, err := io.ReadAll(r.Body)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -49,6 +50,7 @@ func (myShortener *MyShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	message := urlreq{}
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&message)
+
 	if err != nil {
 		http.Error(w, "failed to decode message: "+err.Error(), http.StatusInternalServerError)
 

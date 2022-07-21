@@ -105,9 +105,9 @@ func Test_jsonHandler(t *testing.T) {
 		enc := json.NewEncoder(buf)
 		err := enc.Encode(resp)
 		require.NoError(t, err)
-		err = res.Body.Close()
-		require.NoError(t, err)
 		res, err := cl.Post(ts.URL+"/app/shorten", ctXML, buf)
+		require.NoError(t, err)
+		err = res.Body.Close()
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	}
