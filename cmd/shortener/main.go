@@ -18,5 +18,5 @@ func chiRouter(r chi.Router) {
 	shortener := shortner.MyShortener{}
 	r.Post("/", shortener.MakeShort)
 	r.Get("/{id}", shortener.MakeLong)
-	r.Post("/app/shorten", shortener.MakeShortJSON)
+	r.Post("/api/shorten", shortener.MakeShortJSON)
 }

@@ -58,7 +58,7 @@ func Test_jsonHandler(t *testing.T) {
 	err := enc.Encode(req)
 	require.NoError(t, err)
 
-	res, err := cl.Post(ts.URL+"/app/shorten", ctJSON, buf)
+	res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, buf)
 
 	require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func Test_jsonHandler(t *testing.T) {
 		err := enc.Encode(req)
 		require.NoError(t, err)
 
-		res, err := cl.Post(ts.URL+"/app/shorten", ctJSON, buf)
+		res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, buf)
 		require.NoError(t, err)
 
 		if h := res.Header.Get("Content-Type"); h != ctJSON {
@@ -105,7 +105,7 @@ func Test_jsonHandler(t *testing.T) {
 		enc := json.NewEncoder(buf)
 		err := enc.Encode(resp)
 		require.NoError(t, err)
-		res, err := cl.Post(ts.URL+"/app/shorten", ctXML, buf)
+		res, err := cl.Post(ts.URL+"/api/shorten", ctXML, buf)
 		require.NoError(t, err)
 		err = res.Body.Close()
 		require.NoError(t, err)
