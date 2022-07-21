@@ -17,8 +17,8 @@ import (
 
 const (
 	host   string = "localhost:8080"
-	ctJSON        = "application/json"
-	ctXML         = "application/xml"
+	ctJSON string = "application/json"
+	ctXML  string = "application/xml"
 )
 
 type args struct {
