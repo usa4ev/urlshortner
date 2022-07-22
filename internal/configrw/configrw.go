@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func BaseURL() string {
+func ReadBaseURL() string {
 	if v, ok := os.LookupEnv("BASE_URL"); ok {
 		return v
 	}
@@ -14,11 +14,20 @@ func BaseURL() string {
 	return "http://localhost:8080/"
 }
 
-func SrvAddr() string {
+func ReadSrvAddr() string {
 	if v, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
 		return v
 	}
 	fmt.Println("failed to read environment var SERVER_ADDRESS")
 
 	return "localhost:8080"
+}
+
+func ReadStoragePath() string {
+	if v, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {
+		return v
+	}
+	fmt.Println("failed to read environment var FILE_STORAGE_PATH")
+
+	return ""
 }

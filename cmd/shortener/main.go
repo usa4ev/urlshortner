@@ -12,7 +12,7 @@ import (
 func main() {
 	r := chi.NewRouter()
 	r.Route("/", chiRouter)
-	log.Fatal(http.ListenAndServe(configrw.SrvAddr(), r))
+	log.Fatal(http.ListenAndServe(configrw.ReadSrvAddr(), r))
 }
 
 func chiRouter(r chi.Router) {

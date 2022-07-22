@@ -3,19 +3,23 @@ package app
 import (
 	"encoding/json"
 	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net/http"
 	"strconv"
 )
 
-type myShortener struct {
-	urlMap  map[int]string
-	i       int
-	baseURL string
-}
+type (
+	myShortener struct {
+		urlMap  storage.StorageMap
+		i       int
+		baseURL string
+	}
+)
 
 func NewShortener() *myShortener {
-	return &myShortener{make(map[int]string), 0, configrw.BaseURL()}
+
+	return &myShortener{storage.NewStorage(), 0, configrw.ReadBaseURL()}
 }
 
 func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +127,12 @@ func shortURL(url string, myShortener *myShortener) string {
 	myShortener.i++
 
 	myShortener.urlMap[myShortener.i] = url
+
+	err := storage.AppendStorage(myShortener.i, url)
+
+	if err != nil {
+		panic("failed to write new values to storage:" + err.Error())
+	}
 
 	return myShortener.makeURL(myShortener.i)
 }
