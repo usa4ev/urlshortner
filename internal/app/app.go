@@ -2,17 +2,23 @@ package app
 
 import (
 	"encoding/json"
+	"github.com/usa4ev/urlshortner/internal/configrw"
 	"io"
 	"net/http"
 	"strconv"
 )
 
-type MyShortener struct {
-	urlMap map[int]string
-	i      int
+type myShortener struct {
+	urlMap  map[int]string
+	i       int
+	baseURL string
 }
 
-func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
+func NewShortener() *myShortener {
+	return &myShortener{make(map[int]string), 0, configrw.BaseURL()}
+}
+
+func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	URL, err := io.ReadAll(r.Body)
 
@@ -22,7 +28,7 @@ func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	shortURL := shortURL(string(URL), r.Host, myShortener)
+	shortURL := shortURL(string(URL), myShortener)
 
 	w.WriteHeader(http.StatusCreated)
 	_, err = io.WriteString(w, shortURL)
@@ -34,7 +40,7 @@ func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (myShortener *MyShortener) MakeShortJSON(w http.ResponseWriter, r *http.Request) {
+func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
 		http.Error(w, "unsupported content type", http.StatusBadRequest)
 
@@ -62,7 +68,7 @@ func (myShortener *MyShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	res := urlres{}
-	res.Result = shortURL(message.URL, r.Host, myShortener)
+	res.Result = shortURL(message.URL, myShortener)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -77,7 +83,7 @@ func (myShortener *MyShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (myShortener *MyShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
+func (myShortener *myShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
 	strid := r.URL.Path[1:]
 
 	if strid == "" {
@@ -103,14 +109,14 @@ func (myShortener *MyShortener) MakeLong(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
-func shortURL(url string, host string, myShortener *MyShortener) string {
+func shortURL(url string, myShortener *myShortener) string {
 	if myShortener.urlMap == nil {
 		myShortener.urlMap = make(map[int]string)
 	}
 
 	for i, v := range myShortener.urlMap {
 		if v == url {
-			return makeURL(host, i)
+			return myShortener.makeURL(i)
 		}
 	}
 
@@ -118,13 +124,14 @@ func shortURL(url string, host string, myShortener *MyShortener) string {
 
 	myShortener.urlMap[myShortener.i] = url
 
-	return makeURL(host, myShortener.i)
+	return myShortener.makeURL(myShortener.i)
 }
 
-func makeURL(host string, id int) string {
-	return "http://" + host + "/" + strconv.Itoa(id)
+func (s *myShortener) makeURL(id int) string {
+
+	return s.baseURL + strconv.Itoa(id)
 }
 
-func getPath(id int, myShortener *MyShortener) string {
+func getPath(id int, myShortener *myShortener) string {
 	return myShortener.urlMap[id]
 }

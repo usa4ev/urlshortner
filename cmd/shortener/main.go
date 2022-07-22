@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/usa4ev/urlshortner/internal/configrw"
 	"log"
 	"net/http"
 
@@ -11,11 +12,11 @@ import (
 func main() {
 	r := chi.NewRouter()
 	r.Route("/", chiRouter)
-	log.Fatal(http.ListenAndServe("localhost:8080", r))
+	log.Fatal(http.ListenAndServe(configrw.SrvAddr(), r))
 }
 
 func chiRouter(r chi.Router) {
-	shortener := shortner.MyShortener{}
+	shortener := shortner.NewShortener()
 	r.Post("/", shortener.MakeShort)
 	r.Get("/{id}", shortener.MakeLong)
 	r.Post("/api/shorten", shortener.MakeShortJSON)
