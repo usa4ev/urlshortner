@@ -1,23 +1,16 @@
 package main
 
 import (
-	"github.com/usa4ev/urlshortner/internal/configrw"
 	"log"
 	"net/http"
 
-	"github.com/go-chi/chi"
-	shortner "github.com/usa4ev/urlshortner/internal/app"
+	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/shortener"
 )
 
 func main() {
-	r := chi.NewRouter()
-	r.Route("/", chiRouter)
+	configrw.ParseFlags()
+	r := shortener.NewRouter()
+	r.Route("/", shortener.DefaultRoute())
 	log.Fatal(http.ListenAndServe(configrw.ReadSrvAddr(), r))
-}
-
-func chiRouter(r chi.Router) {
-	shortener := shortner.NewShortener()
-	r.Post("/", shortener.MakeShort)
-	r.Get("/{id}", shortener.MakeLong)
-	r.Post("/api/shorten", shortener.MakeShortJSON)
 }

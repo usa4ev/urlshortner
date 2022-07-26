@@ -1,33 +1,49 @@
 package configrw
 
 import (
-	"fmt"
+	"flag"
 	"os"
 )
 
-func ReadBaseURL() string {
-	if v, ok := os.LookupEnv("BASE_URL"); ok {
-		return v
-	}
-	fmt.Println("failed to read environment var BASE_URL")
+var (
+	baseURL     = "http://localhost:8080/"
+	srvAddr     = "localhost:8080"
+	storagePath = "$HOME"
+)
 
-	return "http://localhost:8080/"
+func ReadBaseURL() string {
+	if baseURL != "" {
+		return baseURL
+	}
+
+	baseURL = os.Getenv("BASE_URL")
+
+	return baseURL
 }
 
 func ReadSrvAddr() string {
-	if v, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
-		return v
+	if srvAddr != "" {
+		return srvAddr
 	}
-	fmt.Println("failed to read environment var SERVER_ADDRESS")
 
-	return "localhost:8080"
+	srvAddr = os.Getenv("BASE_URL")
+
+	return srvAddr
 }
 
 func ReadStoragePath() string {
-	if v, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {
-		return v
+	if storagePath != "" {
+		return storagePath
 	}
-	fmt.Println("failed to read environment var FILE_STORAGE_PATH")
 
-	return ""
+	storagePath = os.Getenv("BASE_URL")
+
+	return storagePath
+}
+
+func ParseFlags() {
+	flag.StringVar(&baseURL, "b", baseURL, "base for short URLs")
+	flag.StringVar(&srvAddr, "a", srvAddr, "address of URL the shortener service")
+	flag.StringVar(&storagePath, "f", storagePath, "path to a storage file")
+	flag.Parse()
 }

@@ -2,31 +2,32 @@ package storage
 
 import (
 	"encoding/csv"
-	"github.com/usa4ev/urlshortner/internal/configrw"
 	"os"
-	"strconv"
+
+	"github.com/usa4ev/urlshortner/internal/configrw"
 )
 
-type StorageMap map[int]string
+type Storage map[string]string
 
-func NewStorage() StorageMap {
-	s := make(StorageMap)
-	err := readStorage(s)
-	if err != nil {
+func NewStorage() Storage {
+	s := make(Storage)
+
+	if err := readStorage(s); err != nil {
 		panic("failed to read from file storage: " + err.Error())
 	}
+
 	return s
 }
 
-func readStorage(s StorageMap) error {
+func readStorage(s Storage) error {
 	path := configrw.ReadStoragePath()
 
-	//path is not set, quit wo error
+	// path is not set, quit wo error
 	if path == "" {
 		return nil
 	}
 
-	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0777)
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o777)
 	defer file.Close()
 
 	if err != nil {
@@ -34,29 +35,29 @@ func readStorage(s StorageMap) error {
 	}
 
 	reader := csv.NewReader(file)
+
 	strings, err := reader.ReadAll()
+	if err != nil {
+		return err
+	}
 
 	for _, v := range strings {
-		i, err := strconv.Atoi(v[0])
-		if err != nil {
-			return err
-		}
-
-		s[i] = v[1]
+		key := v[0]
+		s[key] = v[1]
 	}
 
 	return nil
 }
 
-func AppendStorage(key int, value string) error {
+func AppendStorage(key, value string) error {
 	path := configrw.ReadStoragePath()
 
-	//path is not set, quit wo error
+	// path is not set, quit wo error
 	if path == "" {
 		return nil
 	}
 
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o777)
 	defer file.Close()
 
 	if err != nil {
@@ -64,7 +65,7 @@ func AppendStorage(key int, value string) error {
 	}
 
 	writer := csv.NewWriter(file)
-	err = writer.Write([]string{strconv.Itoa(key), value})
+	err = writer.Write([]string{key, value})
 
 	if err != nil {
 		return err
