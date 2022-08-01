@@ -111,7 +111,7 @@ func shortenURL(url string, myShortener *myShortener) string {
 }
 
 func (myShortener *myShortener) makeURL(key string) string {
-	return myShortener.baseURL + key
+	return myShortener.baseURL + "/" + key
 }
 
 func (myShortener *myShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
