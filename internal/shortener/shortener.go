@@ -1,7 +1,8 @@
 package shortener
 
 import (
-	gzip2 "compress/gzip"
+	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -37,8 +38,7 @@ func newShortener() *myShortener {
 
 func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-
-	URL, err := io.ReadAll(r.Body)
+	URL, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -65,9 +65,13 @@ func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	defer r.Body.Close()
+	body, err := readBody(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	message := urlreq{}
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(bytes.NewBuffer(body))
 
 	if err := dec.Decode(&message); err != nil {
 		http.Error(w, "failed to decode message: "+err.Error(), http.StatusBadRequest)
@@ -140,9 +144,9 @@ func NewRouter() *chi.Mux {
 func DefaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 		shortener := newShortener()
-		r.With(gzip).Post("/", shortener.MakeShort)
-		r.With(gzip).Get("/{id}", shortener.MakeLong)
-		r.With(gzip).Post("/api/shorten", shortener.MakeShortJSON)
+		r.With(gzipMW).Post("/", shortener.MakeShort)
+		r.With(gzipMW).Get("/{id}", shortener.MakeLong)
+		r.With(gzipMW).Post("/api/shorten", shortener.MakeShortJSON)
 	}
 }
 
@@ -155,13 +159,13 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func gzip(next http.Handler) http.Handler {
+func gzipMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		supportedEncoding := r.Header.Values("Accept-Encoding")
 		if len(supportedEncoding) > 0 {
 			for _, v := range supportedEncoding {
 				if v == "gzip" {
-					writer, err := gzip2.NewWriterLevel(w, gzip2.BestSpeed)
+					writer, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 					if err != nil {
 						http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -179,4 +183,26 @@ func gzip(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func readBody(r *http.Request) ([]byte, error) {
+	var reader io.Reader
+
+	if r.Header.Get(`Content-Encoding`) == `gzip` {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			return nil, err
+		}
+		reader = gz
+		defer gz.Close()
+	} else {
+		reader = r.Body
+	}
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }

@@ -24,10 +24,10 @@ func TestStorage(t *testing.T) {
 		require.NoError(t, err, "failed to append storage")
 	}
 
-	storage := storage.NewStorage()
+	storageMap := storage.NewStorage()
 
 	for k, v := range args {
-		assert.Equal(t, storage[k], v, "failed to read from storage")
+		assert.Equal(t, storageMap[k], v, "failed to read from storage")
 	}
 }
 

@@ -84,6 +84,7 @@ func Test_MakeShort(t *testing.T) {
 	defer ts.Close()
 
 	for _, tt := range cases {
+
 		t.Run("POST no-JSON", func(t *testing.T) {
 			res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 			require.NoError(t, err, "url: %v", tt.url)
@@ -99,6 +100,33 @@ func Test_MakeShort(t *testing.T) {
 			require.NoError(t, res.Body.Close())
 			assert.Equal(t, tt.want, string(body))
 		})
+
+		/*		t.Run("POST no-JSON gzip", func(t *testing.T) {
+				buf := bytes.NewBuffer(nil)
+				writer, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
+				require.NoError(t, err, "url: %v", tt.url)
+				_, err = writer.Write([]byte(tt.url))
+				require.NoError(t, err, "url: %v", tt.url)
+
+				r, err := http.NewRequest("POST", ts.URL, buf)
+				require.NoError(t, err, "url: %v", tt.url)
+				r.Header.Set("Content-Type", ctText)
+				r.Header.Set("Content-Encoding", "gzip")
+
+				res, err := cl.Do(r)
+				require.NoError(t, err, "url: %v", tt.url)
+
+				if res.StatusCode != http.StatusCreated {
+					t.Errorf("failed when filling test data\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
+
+					return
+				}
+
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				require.NoError(t, res.Body.Close())
+				assert.Equal(t, tt.want, string(body))
+			})*/
 	}
 }
 
@@ -108,18 +136,15 @@ func Test_MakeShortJSON(t *testing.T) {
 	cl := newTestClient(ts)
 
 	defer ts.Close()
-
+	defer resetStorage()
 	for _, tt := range cases {
 		t.Run("POST JSON", func(t *testing.T) {
-			err := resetStorage()
-			require.NoError(t, err, "failed to reset storage")
-			defer resetStorage()
+			require.NoError(t, resetStorage(), "failed to reset storage")
 
 			req := urlreq{tt.url}
 			w := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(w)
-			err = enc.Encode(req)
-			require.NoError(t, err, "url: %v", tt.url)
+			require.NoError(t, enc.Encode(req), "url: %v", tt.url)
 
 			res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, w)
 			require.NoError(t, err, "url: %v", tt.url)
@@ -141,6 +166,45 @@ func Test_MakeShortJSON(t *testing.T) {
 			require.NoError(t, res.Body.Close())
 			assert.Equal(t, tt.want, message.Result, "result mismatch\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
 		})
+
+		/*t.Run("POST JSON  gzip", func(t *testing.T) {
+			require.NoError(t, resetStorage(), "failed to reset storage")
+
+			r, w := io.Pipe()
+			reqJSON := urlreq{tt.url}
+			writer, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+			require.NoError(t, err, "url: %v", tt.url)
+			enc := json.NewEncoder(writer)
+			require.NoError(t, enc.Encode(reqJSON), "url: %v", tt.url)
+			require.NoError(t, writer.Close(), "url: %v", tt.url)
+
+			req, err := http.NewRequest("POST", ts.URL+"/api/shorten", r)
+			require.NoError(t, err, "url: %v", tt.url)
+			req.Header.Set("Content-Type", ctJSON)
+			req.Header.Set("Content-Encoding", "gzip")
+
+			res, err := cl.Do(req)
+			require.NoError(t, err, "url: %v", tt.url)
+
+			if res.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(res.Body)
+				assert.NoError(t, err)
+				t.Errorf("failed when filling test data\nurl: %v\nstatus:%v\nerr:%v", tt.url, res.StatusCode, string(body))
+
+				return
+			}
+
+			message := urlres{}
+			dec := json.NewDecoder(res.Body)
+			err = dec.Decode(&message)
+			if err != nil {
+				message, _ := io.ReadAll(res.Body)
+				require.NoError(t, err, "failed to parse message:", string(message))
+			}
+
+			require.NoError(t, res.Body.Close())
+			assert.Equal(t, tt.want, message.Result, "result mismatch\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
+		})*/
 	}
 
 	t.Run("Wrong content type header", func(t *testing.T) {
@@ -225,7 +289,7 @@ func Test_MakeLong(t *testing.T) {
 	})
 
 	tt := cases[0]
-	t.Run("Get gzip", func(t *testing.T) {
+	t.Run("Get gzipMW", func(t *testing.T) {
 		defer resetStorage()
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
