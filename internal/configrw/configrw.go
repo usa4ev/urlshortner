@@ -12,36 +12,31 @@ var (
 )
 
 func ReadBaseURL() string {
-	if baseURL != "" {
-		return baseURL
-	}
-
-	baseURL = os.Getenv("BASE_URL")
-
 	return baseURL
 }
 
 func ReadSrvAddr() string {
-	if srvAddr != "" {
-		return srvAddr
-	}
-
-	srvAddr = os.Getenv("BASE_URL")
-
 	return srvAddr
 }
 
 func ReadStoragePath() string {
-	if storagePath != "" {
-		return storagePath
-	}
-
-	storagePath = os.Getenv("BASE_URL")
-
 	return storagePath
 }
 
 func ParseFlags() {
+
+	// setting up default values first
+	envVars := map[string]*string{
+		"BASE_URL":          &baseURL,
+		"SERVER_ADDRESS":    &srvAddr,
+		"FILE_STORAGE_PATH": &storagePath,
+	}
+	for key, envVar := range envVars {
+		if v, ok := os.LookupEnv(key); ok {
+			*envVar = v
+		}
+	}
+
 	flag.StringVar(&baseURL, "b", baseURL, "base for short URLs")
 	flag.StringVar(&srvAddr, "a", srvAddr, "address of URL the shortener service")
 	flag.StringVar(&storagePath, "f", storagePath, "path to a storage file")

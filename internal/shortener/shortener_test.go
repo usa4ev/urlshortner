@@ -158,6 +158,7 @@ func Test_MakeShortJSON(t *testing.T) {
 		require.NoError(t, err, "url: %v", tt.url)
 
 		res, err := cl.Post(ts.URL+"/api/shorten", ctXML, w)
+		defer res.Body.Close()
 		require.NoError(t, err, "url: %v", tt.url)
 
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "got wrong status code")
@@ -167,6 +168,7 @@ func Test_MakeShortJSON(t *testing.T) {
 		tt := cases[0]
 
 		res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, bytes.NewBuffer([]byte(tt.url)))
+		defer res.Body.Close()
 		require.NoError(t, err, "url: %v", tt.url)
 
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "got wrong status code")
@@ -185,6 +187,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 
 		tt := cases[0]
 		res, err := cl.Get(tt.want)
+		defer res.Body.Close()
 		require.NoError(t, err, "url: %v", tt.url)
 		require.Equal(t, http.StatusNotFound, res.StatusCode, "got wrong status code\nurl:%v", tt.url)
 	})
@@ -208,9 +211,9 @@ func Test_MakeLong(t *testing.T) {
 			res, err := cl.Get(tt.want)
 			require.NoError(t, err, "url: %v", tt.url)
 			response, err := io.ReadAll(res.Body)
+			defer res.Body.Close()
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
-
 			assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
 		}
 	})
@@ -233,6 +236,7 @@ func Test_MakeLong(t *testing.T) {
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
 		require.Equal(t, http.StatusCreated, res.StatusCode)
+		defer res.Body.Close()
 
 		res, err = cl.Get(tt.want)
 		require.NoError(t, err, "url: %v", tt.url)
