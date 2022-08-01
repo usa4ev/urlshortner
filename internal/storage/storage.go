@@ -28,11 +28,11 @@ func readStorage(s Storage) error {
 	}
 
 	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o777)
-	defer file.Close()
-
 	if err != nil {
 		return err
 	}
+
+	defer file.Close()
 
 	reader := csv.NewReader(file)
 
@@ -58,11 +58,11 @@ func AppendStorage(key, value string) error {
 	}
 
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o777)
-	defer file.Close()
-
 	if err != nil {
 		return err
 	}
+
+	defer file.Close()
 
 	writer := csv.NewWriter(file)
 	err = writer.Write([]string{key, value})

@@ -10,7 +10,9 @@ import (
 
 func main() {
 	configrw.ParseFlags()
+
 	r := shortener.NewRouter()
+
 	r.Route("/", shortener.DefaultRoute())
 	log.Fatal(http.ListenAndServe(configrw.ReadSrvAddr(), r))
 }

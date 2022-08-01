@@ -1,6 +1,7 @@
 package shortener
 
 import (
+	gzip2 "compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -80,8 +81,7 @@ func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusCreated)
 	enc := json.NewEncoder(w)
 
-	err := enc.Encode(res)
-	if err != nil {
+	if err := enc.Encode(res); err != nil {
 		http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
 
 		return
@@ -140,8 +140,43 @@ func NewRouter() *chi.Mux {
 func DefaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 		shortener := newShortener()
-		r.Post("/", shortener.MakeShort)
-		r.Get("/{id}", shortener.MakeLong)
-		r.Post("/api/shorten", shortener.MakeShortJSON)
+		r.With(gzip).Post("/", shortener.MakeShort)
+		r.With(gzip).Get("/{id}", shortener.MakeLong)
+		r.With(gzip).Post("/api/shorten", shortener.MakeShortJSON)
 	}
+}
+
+type gzipWriter struct {
+	http.ResponseWriter
+	Writer io.Writer
+}
+
+func (w gzipWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func gzip(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		supportedEncoding := r.Header.Values("Accept-Encoding")
+		if len(supportedEncoding) > 0 {
+			for _, v := range supportedEncoding {
+				if v == "gzip" {
+					writer, err := gzip2.NewWriterLevel(w, gzip2.BestSpeed)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+
+						return
+					}
+					defer writer.Close()
+					w.Header().Set("Content-Encoding", "gzip")
+					gzipW := gzipWriter{w, writer}
+					next.ServeHTTP(gzipW, r)
+
+					return
+				}
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

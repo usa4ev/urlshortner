@@ -226,6 +226,18 @@ func Test_MakeLong(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, res.StatusCode, "got wrong status code\nurl%v:", tt.url)
 	})
+
+	tt := cases[0]
+	t.Run("Get gzip", func(t *testing.T) {
+		defer resetStorage()
+		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
+		require.NoError(t, err, "url: %v", tt.url)
+		require.Equal(t, http.StatusCreated, res.StatusCode)
+
+		res, err = cl.Get(tt.want)
+		require.NoError(t, err, "url: %v", tt.url)
+		assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl%v:", tt.url)
+	})
 }
 
 func resetStorage() error {
