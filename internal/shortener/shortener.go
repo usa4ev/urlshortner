@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -205,10 +206,12 @@ func gzipMW(next http.Handler) http.Handler {
 	})
 }
 
-func (s MyShortener) Handlers() []handler {
+func (s *MyShortener) Handlers() []handler {
 	return s.handlers
 }
 
-func (s MyShortener) FlushStorage() {
-	s.storage.Flush()
+func (s *MyShortener) FlushStorage() {
+	if err := s.storage.Flush(); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -29,7 +29,6 @@ func TestStorage(t *testing.T) {
 		err := data.Append(k, v, storagePath)
 		require.NoError(t, err, "failed to append storage")
 	}
-
 	require.NoError(t, data.Flush())
 
 	dataRead := storage.NewStorage(storagePath)
@@ -37,7 +36,7 @@ func TestStorage(t *testing.T) {
 	data.Range(func(k, v any) bool {
 		vRead, ok := dataRead.Load(k.(string))
 		assert.Equal(t, true, ok, "failed to read from storage")
-		assert.Equal(t, vRead, v, "failed to read from storage")
+		assert.Equal(t, v, vRead, "failed to read from storage")
 
 		return true
 	})

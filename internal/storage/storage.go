@@ -64,7 +64,9 @@ func readStorage(storagePath string) (sync.Map, error) {
 }
 
 func (s *Storage) Append(key, value, storagePath string) error {
-	s.storageMap.Store(key, value)
+	if _, ok := s.storageMap.LoadOrStore(key, value); ok {
+		return nil
+	}
 
 	// path is not set, quit wo error
 	if storagePath == "" {

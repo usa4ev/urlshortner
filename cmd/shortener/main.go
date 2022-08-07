@@ -1,12 +1,10 @@
 package main
 
 import (
-	"log"
-
 	"github.com/usa4ev/urlshortner/internal/router"
+	"log"
 )
 
 func main() {
-	r := router.NewRouter()
-	log.Fatal(router.ListenAndServe(r))
+	log.Fatal(router.ListenAndServe())
 }

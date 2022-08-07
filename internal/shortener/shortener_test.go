@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/usa4ev/urlshortner/internal/shortener"
 	"io"
 	"net"
 	"net/http"
@@ -46,7 +47,8 @@ func newTestClient(ts *httptest.Server) *http.Client {
 }
 
 func newTestSrv() *httptest.Server {
-	r := router.NewRouter()
+	s := shortener.NewShortener()
+	r := router.NewRouter(s)
 
 	l, err := net.Listen("tcp", host)
 	if err != nil {
