@@ -22,7 +22,7 @@ const (
 
 type (
 	MyShortener struct {
-		storage  storage.Storage
+		storage  *storage.Storage
 		Config   configrw.Config
 		handlers []handler
 	}

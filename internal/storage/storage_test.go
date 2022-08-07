@@ -29,6 +29,7 @@ func TestStorage(t *testing.T) {
 		err := data.Append(k, v, storagePath)
 		require.NoError(t, err, "failed to append storage")
 	}
+
 	require.NoError(t, data.Flush())
 
 	dataRead := storage.NewStorage(storagePath)

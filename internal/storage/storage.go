@@ -8,19 +8,23 @@ import (
 )
 
 type Storage struct {
-	storageMap sync.Map
+	storageMap *sync.Map
 	writer     *bufio.Writer
 	mx         *sync.Mutex
 }
 
-func NewStorage(storagePath string) Storage {
+func NewStorage(storagePath string) *Storage {
 	s, err := readStorage(storagePath)
 	if err != nil {
 		panic("failed to read from file storage: " + err.Error())
 	}
 
 	file, err := openStorageFile(storagePath)
-	storage := Storage{s, bufio.NewWriter(file), &sync.Mutex{}}
+	if err != nil {
+		panic("failed to open storage file:" + err.Error())
+	}
+
+	storage := &Storage{s, bufio.NewWriter(file), &sync.Mutex{}}
 
 	return storage
 }
@@ -34,8 +38,8 @@ func openStorageFile(storagePath string) (*os.File, error) {
 	return file, nil
 }
 
-func readStorage(storagePath string) (sync.Map, error) {
-	var s sync.Map
+func readStorage(storagePath string) (*sync.Map, error) {
+	var s *sync.Map
 
 	// path is not set, quit wo error
 	if storagePath == "" {

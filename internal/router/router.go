@@ -31,11 +31,12 @@ func ListenAndServe() {
 		<-sig
 
 		// Shutdown signal with grace period of 30 seconds
-		shutdownCtx, _ := context.WithTimeout(serverCtx, 30*time.Second)
+		shutdownCtx, cancelCtx := context.WithTimeout(serverCtx, 30*time.Second)
 
 		go func() {
 			<-shutdownCtx.Done()
 			if shutdownCtx.Err() == context.DeadlineExceeded {
+				defer cancelCtx()
 				log.Fatal("graceful shutdown timed out.. forcing exit.")
 			}
 		}()
