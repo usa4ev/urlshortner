@@ -13,7 +13,7 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	s := Config{"http://localhost:8080", "127.0.0.1:8080", os.Getenv("HOME") + "/storage.csv"}
+	s := Config{"http://localhost:8080", "127.0.0.1:8081", os.Getenv("HOME") + "/storage.csv"}
 
 	// setting up default values first
 	envVars := map[string]*string{
@@ -27,12 +27,13 @@ func NewConfig() Config {
 		}
 	}
 
-	fs := flag.NewFlagSet("myFS", flag.PanicOnError)
+	fs := flag.NewFlagSet("myFS", flag.ContinueOnError)
 	if !fs.Parsed() {
 		fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
 		fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 		fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
-		fs.Parse([]string{"b", "a", "f"})
+		fs.Parse(os.Args[1:])
+		fmt.Println("addr:" + s.srvAddr)
 	}
 
 	fmt.Println(s.storagePath)

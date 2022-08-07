@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/shortener"
@@ -20,6 +21,8 @@ func ListenAndServe() {
 	config := configrw.NewConfig()
 	myShortener := shortener.NewShortener()
 	server := &http.Server{Addr: config.SrvAddr(), Handler: NewRouter(myShortener)}
+
+	fmt.Println("server started at:" + config.SrvAddr())
 
 	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
