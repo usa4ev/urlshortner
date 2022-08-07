@@ -8,7 +8,7 @@ import (
 )
 
 type Storage struct {
-	storageMap sync.Map
+	storageMap *sync.Map
 	writer     *bufio.Writer
 	mx         *sync.Mutex
 }
@@ -38,17 +38,17 @@ func openStorageFile(storagePath string) (*os.File, error) {
 	return file, nil
 }
 
-func readStorage(storagePath string) (sync.Map, error) {
+func readStorage(storagePath string) (*sync.Map, error) {
 	var s sync.Map
 
 	// path is not set, quit wo error
 	if storagePath == "" {
-		return s, nil
+		return &s, nil
 	}
 
 	file, err := os.OpenFile(storagePath, os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o777)
 	if err != nil {
-		return s, err
+		return &s, err
 	}
 
 	defer file.Close()
@@ -57,14 +57,14 @@ func readStorage(storagePath string) (sync.Map, error) {
 
 	strings, err := reader.ReadAll()
 	if err != nil {
-		return s, err
+		return &s, err
 	}
 
 	for _, v := range strings {
 		s.Store(v[0], v[1])
 	}
 
-	return s, nil
+	return &s, nil
 }
 
 func (s *Storage) Append(key, value, storagePath string) error {
