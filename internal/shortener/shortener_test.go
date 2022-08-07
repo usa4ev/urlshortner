@@ -46,11 +46,11 @@ func newTestClient(ts *httptest.Server) *http.Client {
 	return cl
 }
 
-func newTestSrv() *httptest.Server {
+func newTestSrv(srvAddr string) *httptest.Server {
 	s := shortener.NewShortener()
 	r := router.NewRouter(s)
 
-	l, err := net.Listen("tcp", host)
+	l, err := net.Listen("tcp", srvAddr)
 	if err != nil {
 		panic(fmt.Sprintf("httptest: failed to listen on %v: %v", "localhost:8080", err))
 	}
@@ -80,7 +80,7 @@ func getTests(baseURL string) tests {
 func Test_MakeShort(t *testing.T) {
 	config := configrw.NewConfig()
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv()
+	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
 	defer resetStorage(config.StoragePath())
 
@@ -135,7 +135,7 @@ func Test_MakeShort(t *testing.T) {
 func Test_MakeShortJSON(t *testing.T) {
 	config := configrw.NewConfig()
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv()
+	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -207,7 +207,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 	config := configrw.NewConfig()
 	resetStorage(config.StoragePath())
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv()
+	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
 
 	t.Run("Empty storage", func(t *testing.T) {
@@ -226,7 +226,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 func Test_MakeLong(t *testing.T) {
 	config := configrw.NewConfig()
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv()
+	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
 
 	cl := newTestClient(ts)

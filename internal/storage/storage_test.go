@@ -16,6 +16,7 @@ import (
 func TestStorage(t *testing.T) {
 	config := configrw.NewConfig()
 	storagePath := config.StoragePath()
+	resetStorage(config.StoragePath())
 	defer resetStorage(config.StoragePath())
 
 	args := make(map[string]string)

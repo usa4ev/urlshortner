@@ -28,7 +28,7 @@ func NewConfig() Config {
 
 	if !flag.Parsed() {
 		flag.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
-		flag.StringVar(&s.srvAddr, "a", s.srvAddr, "address of URL the shortener service")
+		flag.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 		flag.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 		flag.Parse()
 	}
