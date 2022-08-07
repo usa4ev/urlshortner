@@ -3,6 +3,7 @@ package storage_test
 import (
 	"errors"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,27 +14,36 @@ import (
 )
 
 func TestStorage(t *testing.T) {
-	err := resetStorage()
-	require.NoError(t, err, "failed to reset storage")
-	defer resetStorage()
+	config := configrw.NewConfig()
+	storagePath := config.StoragePath()
+	defer resetStorage(config.StoragePath())
 
-	args := storage.Storage{"test": "test", "test1": "test1", "test2": "test2"}
+	args := make(map[string]string)
+	for i := 0; i <= 100; i++ {
+		args["test"+strconv.Itoa(i)] = "test" + strconv.Itoa(i)
+	}
+
+	data := storage.NewStorage(storagePath)
 
 	for k, v := range args {
-		err := storage.AppendStorage(k, v)
+		err := data.Append(k, v, storagePath)
 		require.NoError(t, err, "failed to append storage")
 	}
 
-	storageMap := storage.NewStorage()
+	require.NoError(t, data.Flush())
 
-	for k, v := range args {
-		assert.Equal(t, storageMap[k], v, "failed to read from storage")
-	}
+	dataRead := storage.NewStorage(storagePath)
+
+	data.Range(func(k, v any) bool {
+		vRead, ok := dataRead.Load(k.(string))
+		assert.Equal(t, true, ok, "failed to read from storage")
+		assert.Equal(t, vRead, v, "failed to read from storage")
+
+		return true
+	})
 }
 
-func resetStorage() error {
-	path := configrw.ReadStoragePath()
-
+func resetStorage(path string) error {
 	// path is not set, quit wo error
 	if path == "" {
 		return nil

@@ -2,17 +2,11 @@ package main
 
 import (
 	"log"
-	"net/http"
 
-	"github.com/usa4ev/urlshortner/internal/configrw"
-	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/router"
 )
 
 func main() {
-	configrw.ParseFlags()
-
-	r := shortener.NewRouter()
-
-	r.Route("/", shortener.DefaultRoute())
-	log.Fatal(http.ListenAndServe(configrw.ReadSrvAddr(), r))
+	r := router.NewRouter()
+	log.Fatal(router.ListenAndServe(r))
 }

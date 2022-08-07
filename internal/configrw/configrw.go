@@ -5,31 +5,20 @@ import (
 	"os"
 )
 
-var (
-	baseURL     = "http://localhost:8080"
-	srvAddr     = "localhost:8080"
-	storagePath = "$HOME"
-)
-
-func ReadBaseURL() string {
-	return baseURL
+type Config struct {
+	baseURL     string
+	srvAddr     string
+	storagePath string
 }
 
-func ReadSrvAddr() string {
-	return srvAddr
-}
-
-func ReadStoragePath() string {
-	return storagePath
-}
-
-func ParseFlags() {
+func NewConfig() Config {
+	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv"}
 
 	// setting up default values first
 	envVars := map[string]*string{
-		"BASE_URL":          &baseURL,
-		"SERVER_ADDRESS":    &srvAddr,
-		"FILE_STORAGE_PATH": &storagePath,
+		"BASE_URL":          &s.baseURL,
+		"SERVER_ADDRESS":    &s.srvAddr,
+		"FILE_STORAGE_PATH": &s.storagePath,
 	}
 	for key, envVar := range envVars {
 		if v, ok := os.LookupEnv(key); ok {
@@ -37,8 +26,24 @@ func ParseFlags() {
 		}
 	}
 
-	flag.StringVar(&baseURL, "b", baseURL, "base for short URLs")
-	flag.StringVar(&srvAddr, "a", srvAddr, "address of URL the shortener service")
-	flag.StringVar(&storagePath, "f", storagePath, "path to a storage file")
-	flag.Parse()
+	if !flag.Parsed() {
+		flag.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
+		flag.StringVar(&s.srvAddr, "a", s.srvAddr, "address of URL the shortener service")
+		flag.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
+		flag.Parse()
+	}
+
+	return s
+}
+
+func (c Config) BaseURL() string {
+	return c.baseURL
+}
+
+func (c Config) SrvAddr() string {
+	return c.srvAddr
+}
+
+func (c Config) StoragePath() string {
+	return c.storagePath
 }

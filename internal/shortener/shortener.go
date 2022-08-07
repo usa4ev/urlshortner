@@ -20,9 +20,10 @@ const (
 )
 
 type (
-	myShortener struct {
-		urlMap  storage.Storage
-		baseURL string
+	MyShortener struct {
+		storage  storage.Storage
+		Config   configrw.Config
+		handlers []handler
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -30,13 +31,28 @@ type (
 	urlres struct {
 		Result string `json:"result"`
 	}
+	handler struct {
+		Method      string
+		Path        string
+		Handler     http.Handler
+		Middlewares chi.Middlewares
+	}
 )
 
-func newShortener() *myShortener {
-	return &myShortener{storage.NewStorage(), configrw.ReadBaseURL()}
+func NewShortener() *MyShortener {
+	s := &MyShortener{}
+	s.Config = configrw.NewConfig()
+	s.storage = storage.NewStorage(s.Config.StoragePath())
+	s.handlers = []handler{
+		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW}},
+		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW}},
+		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW}},
+	}
+
+	return s
 }
 
-func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	URL, err := readBody(r)
 	if err != nil {
@@ -45,7 +61,7 @@ func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	shortURL := shortenURL(string(URL), myShortener)
+	shortURL := myShortener.shortenURL(string(URL))
 
 	w.WriteHeader(http.StatusCreated)
 
@@ -57,7 +73,7 @@ func (myShortener *myShortener) MakeShort(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
 		http.Error(w, "unsupported content type", http.StatusBadRequest)
 
@@ -65,6 +81,7 @@ func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	defer r.Body.Close()
+
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -79,7 +96,7 @@ func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	res := urlres{shortenURL(message.URL, myShortener)}
+	res := urlres{myShortener.shortenURL(message.URL)}
 
 	w.Header().Set("Content-Type", ctJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -92,33 +109,22 @@ func (myShortener *myShortener) MakeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func shortenURL(url string, myShortener *myShortener) string {
-	if myShortener.urlMap == nil {
-		myShortener.urlMap = make(storage.Storage)
-	}
-
-	for k, v := range myShortener.urlMap {
-		if v == url {
-			return myShortener.makeURL(k)
-		}
-	}
-
+func (myShortener *MyShortener) shortenURL(url string) string {
 	key := base64.RawURLEncoding.EncodeToString([]byte(url))
-	myShortener.urlMap[key] = url
+	storagePath := myShortener.Config.StoragePath()
 
-	err := storage.AppendStorage(key, url)
-	if err != nil {
+	if err := myShortener.storage.Append(key, url, storagePath); err != nil {
 		panic("failed to write new values to storage:" + err.Error())
 	}
 
 	return myShortener.makeURL(key)
 }
 
-func (myShortener *myShortener) makeURL(key string) string {
-	return myShortener.baseURL + "/" + key
+func (myShortener *MyShortener) makeURL(key string) string {
+	return myShortener.Config.BaseURL() + "/" + key
 }
 
-func (myShortener *myShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	redirect, err := findURL(r.URL.Path[1:], myShortener)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -129,26 +135,17 @@ func (myShortener *myShortener) MakeLong(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
-func findURL(key string, myShortener *myShortener) (string, error) {
-	if url, ok := myShortener.urlMap[key]; ok {
+func findURL(key string, myShortener *MyShortener) (string, error) {
+	if url, ok := myShortener.storage.Load(key); ok {
 		return url, nil
 	}
 
 	return "", errors.New("url not found")
 }
 
-func NewRouter() *chi.Mux {
+/*func NewRouter() *chi.Mux {
 	return chi.NewRouter()
-}
-
-func DefaultRoute() func(r chi.Router) {
-	return func(r chi.Router) {
-		shortener := newShortener()
-		r.With(gzipMW).Post("/", shortener.MakeShort)
-		r.With(gzipMW).Get("/{id}", shortener.MakeLong)
-		r.With(gzipMW).Post("/api/shorten", shortener.MakeShortJSON)
-	}
-}
+}*/
 
 type gzipWriter struct {
 	http.ResponseWriter
@@ -157,6 +154,29 @@ type gzipWriter struct {
 
 func (w gzipWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+func readBody(r *http.Request) ([]byte, error) {
+	var reader io.Reader
+
+	if r.Header.Get(`Content-Encoding`) == `gzip` {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		reader = gz
+		defer gz.Close()
+	} else {
+		reader = r.Body
+	}
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func gzipMW(next http.Handler) http.Handler {
@@ -185,24 +205,10 @@ func gzipMW(next http.Handler) http.Handler {
 	})
 }
 
-func readBody(r *http.Request) ([]byte, error) {
-	var reader io.Reader
+func (s MyShortener) Handlers() []handler {
+	return s.handlers
+}
 
-	if r.Header.Get(`Content-Encoding`) == `gzip` {
-		gz, err := gzip.NewReader(r.Body)
-		if err != nil {
-			return nil, err
-		}
-		reader = gz
-		defer gz.Close()
-	} else {
-		reader = r.Body
-	}
-
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
+func (s MyShortener) FlushStorage() {
+	s.storage.Flush()
 }
