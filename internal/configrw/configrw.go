@@ -26,11 +26,12 @@ func NewConfig() Config {
 		}
 	}
 
-	if !flag.Parsed() {
-		flag.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
-		flag.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
-		flag.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
-		flag.Parse()
+	fs := flag.NewFlagSet("myFS", flag.PanicOnError)
+	if !fs.Parsed() {
+		fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
+		fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
+		fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
+		fs.Parse([]string{"b", "a", "f"})
 	}
 
 	return s
