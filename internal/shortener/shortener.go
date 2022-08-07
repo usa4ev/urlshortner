@@ -206,12 +206,12 @@ func gzipMW(next http.Handler) http.Handler {
 	})
 }
 
-func (s *MyShortener) Handlers() []handler {
-	return s.handlers
+func (myShortener *MyShortener) Handlers() []handler {
+	return myShortener.handlers
 }
 
-func (s *MyShortener) FlushStorage() {
-	if err := s.storage.Flush(); err != nil {
+func (myShortener *MyShortener) FlushStorage() {
+	if err := myShortener.storage.Flush(); err != nil {
 		log.Fatal(err)
 	}
 }
