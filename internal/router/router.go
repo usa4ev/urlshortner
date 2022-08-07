@@ -28,13 +28,10 @@ func ListenAndServe() error {
 	signal.Notify(c, os.Interrupt)
 
 	go func() {
-		select {
-		case <-c:
-			myShortener.FlushStorage()
-			close(c)
-			break
-			return
-		}
+		<-c
+		myShortener.FlushStorage()
+		close(c)
+		return
 
 	}()
 	return http.ListenAndServe(myShortener.Config.SrvAddr(), r)
