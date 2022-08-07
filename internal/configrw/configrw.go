@@ -2,7 +2,6 @@ package configrw
 
 import (
 	"flag"
-	"fmt"
 	"os"
 )
 
@@ -33,10 +32,7 @@ func NewConfig() Config {
 		fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 		fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 		fs.Parse(os.Args[1:])
-		fmt.Println("addr:" + s.srvAddr)
 	}
-
-	fmt.Println(s.storagePath)
 
 	return s
 }
