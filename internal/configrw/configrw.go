@@ -2,6 +2,7 @@ package configrw
 
 import (
 	"flag"
+	"fmt"
 	"os"
 )
 
@@ -12,7 +13,7 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv"}
+	s := Config{"http://localhost:8080", "127.0.0.1:8080", os.Getenv("HOME") + "/storage.csv"}
 
 	// setting up default values first
 	envVars := map[string]*string{
@@ -33,6 +34,8 @@ func NewConfig() Config {
 		fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 		fs.Parse([]string{"b", "a", "f"})
 	}
+
+	fmt.Println(s.storagePath)
 
 	return s
 }
