@@ -12,7 +12,7 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	s := Config{"http://localhost:8080", "127.0.0.1:8081", os.Getenv("HOME") + "/storage.csv"}
+	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv"}
 
 	// setting up default values first
 	envVars := map[string]*string{
