@@ -31,8 +31,6 @@ func ListenAndServe() error {
 		<-c
 		myShortener.FlushStorage()
 		close(c)
-		return
-
 	}()
 	return http.ListenAndServe(myShortener.Config.SrvAddr(), r)
 }
