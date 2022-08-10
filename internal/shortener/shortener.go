@@ -3,21 +3,29 @@ package shortener
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 	"io"
 	"log"
 	"net/http"
-
-	"github.com/go-chi/chi"
+	"sync"
 
 	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
 const (
-	ctJSON string = "application/json"
+	ctJSON       string     = "application/json"
+	key          string     = "9cc1ee455a3363ffc504f40006f70d0c8276648a5d3eb3f9524e94d1b7a83aef"
+	CtxKeyUserID contextKey = 0
 )
 
 type (
@@ -25,6 +33,7 @@ type (
 		storage  *storage.Storage
 		Config   configrw.Config
 		handlers []handler
+		sessions *sync.Map
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -38,16 +47,19 @@ type (
 		Handler     http.Handler
 		Middlewares chi.Middlewares
 	}
+	contextKey int
 )
 
 func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
 	s.storage = storage.NewStorage(s.Config.StoragePath())
+	s.sessions = &sync.Map{}
 	s.handlers = []handler{
-		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW}},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW}},
-		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW}},
+		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW, s.authMW}},
+		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW, s.authMW}},
+		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW, s.authMW}},
+		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), chi.Middlewares{gzipMW, s.authMW}},
 	}
 
 	return s
@@ -55,6 +67,7 @@ func NewShortener() *MyShortener {
 
 func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+	userID := r.Context().Value(CtxKeyUserID).(string)
 	URL, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -62,7 +75,7 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	shortURL := myShortener.shortenURL(string(URL))
+	shortURL := myShortener.shortenURL(string(URL), userID)
 
 	w.WriteHeader(http.StatusCreated)
 
@@ -83,6 +96,7 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 
 	defer r.Body.Close()
 
+	userID := r.Context().Value(CtxKeyUserID).(string)
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -97,7 +111,7 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	res := urlres{myShortener.shortenURL(message.URL)}
+	res := urlres{myShortener.shortenURL(message.URL, userID)}
 
 	w.Header().Set("Content-Type", ctJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -110,11 +124,11 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (myShortener *MyShortener) shortenURL(url string) string {
+func (myShortener *MyShortener) shortenURL(url, userID string) string {
 	key := base64.RawURLEncoding.EncodeToString([]byte(url))
 	storagePath := myShortener.Config.StoragePath()
 
-	if err := myShortener.storage.Append(key, url, storagePath); err != nil {
+	if err := myShortener.storage.Append(key, url, userID, storagePath); err != nil {
 		panic("failed to write new values to storage:" + err.Error())
 	}
 
@@ -136,8 +150,26 @@ func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
+func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(CtxKeyUserID)
+	res := myShortener.storage.LoadByUser(userID.(string))
+	if len(res) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", ctJSON)
+	enc := json.NewEncoder(w)
+
+	if err := enc.Encode(res); err != nil {
+		http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
 func findURL(key string, myShortener *MyShortener) (string, error) {
-	if url, ok := myShortener.storage.Load(key); ok {
+	if url, ok := myShortener.storage.LoadURL(key); ok {
 		return url, nil
 	}
 
@@ -204,6 +236,115 @@ func gzipMW(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+
+		errHandler := func(err error) {
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+		var token string
+		cookie, err := r.Cookie("userID")
+		if err == nil {
+			token, err = openToken(cookie.String())
+			errHandler(err)
+		}
+
+		var usrID string
+
+		s := myShortener.sessions
+		if val, ok := s.Load(token); ok && val == token {
+			usrID = val.(string)
+		} else {
+			usrID = uuid.New().String()
+			newToken, err := sealToken(usrID)
+			errHandler(err)
+			myShortener.sessions.Store(newToken, usrID)
+		}
+
+		setCookie(w, "userID", usrID)
+		next.ServeHTTP(w, ctxWithSession(r, usrID))
+	})
+}
+
+func openToken(token string) (string, error) {
+	hexID, err := hex.DecodeString(token)
+	if err != nil {
+		return "", err
+	}
+
+	k, err := hex.DecodeString(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesblock, err := aes.NewCipher(k)
+	if err != nil {
+		return "", err
+	}
+
+	aesgcm, err := cipher.NewGCM(aesblock)
+	if err != nil {
+		return "", err
+	}
+
+	nonce, err := newNonce(aesgcm, err)
+	if err != nil {
+		return "", err
+	}
+
+	dst, err := aesgcm.Open(nil, nonce, hexID, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(dst), err
+}
+
+func sealToken(usrID string) (string, error) {
+	k, err := hex.DecodeString(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesblock, err := aes.NewCipher(k)
+	if err != nil {
+		return "", err
+	}
+
+	aesgcm, err := cipher.NewGCM(aesblock)
+	if err != nil {
+		return "", err
+	}
+
+	nonce, err := newNonce(aesgcm, err)
+	if err != nil {
+		return "", err
+	}
+
+	dst := aesgcm.Seal(nil, nonce, []byte(usrID), nil)
+
+	return hex.EncodeToString(dst), err
+}
+
+func ctxWithSession(r *http.Request, usrID string) *http.Request {
+	ctx := context.WithValue(r.Context(), CtxKeyUserID, usrID)
+	return r.WithContext(ctx)
+}
+
+func setCookie(w http.ResponseWriter, name string, value string) {
+	cookie := &http.Cookie{Name: name, Value: value}
+	http.SetCookie(w, cookie)
+}
+
+func newNonce(aesgcm cipher.AEAD, err error) ([]byte, error) {
+	nonce := make([]byte, aesgcm.NonceSize())
+	_, err = rand.Read(nonce)
+	return nonce, err
 }
 
 func (myShortener *MyShortener) Handlers() []handler {

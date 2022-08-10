@@ -7,11 +7,23 @@ import (
 	"sync"
 )
 
-type Storage struct {
-	storageMap *sync.Map
-	writer     *bufio.Writer
-	mx         *sync.Mutex
-}
+type (
+	Storage struct {
+		storageMap *sync.Map
+
+		writer *bufio.Writer
+		mx     *sync.Mutex
+	}
+	storer struct {
+		url    string
+		userID string
+	}
+	pairs []Pair
+	Pair  struct {
+		ShortURL    string `json:"short_url"`
+		OriginalURL string `json:"original_url"`
+	}
+)
 
 func NewStorage(storagePath string) *Storage {
 	s, err := readStorage(storagePath)
@@ -61,14 +73,14 @@ func readStorage(storagePath string) (*sync.Map, error) {
 	}
 
 	for _, v := range strings {
-		s.Store(v[0], v[1])
+		s.Store(v[0], storer{v[1], v[2]})
 	}
 
 	return &s, nil
 }
 
-func (s *Storage) Append(key, value, storagePath string) error {
-	if _, ok := s.storageMap.LoadOrStore(key, value); ok {
+func (s *Storage) Append(key, value, userID, storagePath string) error {
+	if _, ok := s.storageMap.LoadOrStore(key, storer{value, userID}); ok {
 		return nil
 	}
 
@@ -80,7 +92,7 @@ func (s *Storage) Append(key, value, storagePath string) error {
 	writer := csv.NewWriter(s.writer)
 
 	s.mx.Lock()
-	err := writer.Write([]string{key, value})
+	err := writer.Write([]string{key, value, userID})
 	s.mx.Unlock()
 
 	if err != nil {
@@ -94,12 +106,26 @@ func (s *Storage) Flush() error {
 	return s.writer.Flush()
 }
 
-func (s Storage) Load(key string) (string, bool) {
+func (s Storage) LoadURL(key string) (string, bool) {
 	if val, ok := s.storageMap.Load(key); ok {
-		return val.(string), ok
+		return val.(storer).url, ok
 	}
 
 	return "", false
+}
+
+func (s Storage) LoadByUser(userID string) pairs {
+	p := pairs{}
+	f := func(key, value any) bool {
+		if value.(storer).userID == userID {
+			p = append(p, Pair{key.(string), value.(storer).url})
+		}
+		return true
+	}
+
+	s.Range(f)
+
+	return p
 }
 
 func (s Storage) Range(f func(key, value any) bool) {

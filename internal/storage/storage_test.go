@@ -13,21 +13,29 @@ import (
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
+type storer struct {
+	url    string
+	userID string
+}
+
 func TestStorage(t *testing.T) {
 	config := configrw.NewConfig()
 	storagePath := config.StoragePath()
 	resetStorage(config.StoragePath())
 	defer resetStorage(config.StoragePath())
 
-	args := make(map[string]string)
-	for i := 0; i <= 100; i++ {
-		args["test"+strconv.Itoa(i)] = "test" + strconv.Itoa(i)
+	count := 100
+	userID := "testUsr"
+
+	args := make(map[string]storer)
+	for i := 0; i < count; i++ {
+		args["test"+strconv.Itoa(i)] = storer{"test" + strconv.Itoa(i), userID}
 	}
 
 	data := storage.NewStorage(storagePath)
 
 	for k, v := range args {
-		err := data.Append(k, v, storagePath)
+		err := data.Append(k, v.url, v.userID, storagePath)
 		require.NoError(t, err, "failed to append storage")
 	}
 
@@ -36,12 +44,19 @@ func TestStorage(t *testing.T) {
 	dataRead := storage.NewStorage(storagePath)
 
 	data.Range(func(k, v any) bool {
-		vRead, ok := dataRead.Load(k.(string))
+		urlact, ok := dataRead.LoadURL(k.(string))
+		urlexp, _ := data.LoadURL(k.(string))
 		assert.Equal(t, true, ok, "failed to read from storage")
-		assert.Equal(t, v, vRead, "failed to read from storage")
+		assert.Equal(t, urlexp, urlact, "failed to read from storage")
 
 		return true
 	})
+
+	res := data.LoadByUser(userID)
+	assert.Equal(t, len(res), count, "failed to read from storage by user")
+
+	res = data.LoadByUser(userID + "0")
+	assert.Equal(t, len(res), 0, "failed to read from storage by user")
 }
 
 func resetStorage(path string) error {
