@@ -55,29 +55,29 @@ func NewConfig(opts ...configOption) Config {
 	}
 	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
 
-	if configOptions.ignoreOsArgs {
-		if v := configOptions.envVars["BASE_URL"]; v != "" {
-			s.baseURL = v
-		}
-		if v := configOptions.envVars["SERVER_ADDRESS"]; v != "" {
-			s.srvAddr = v
-		}
-		if v := configOptions.envVars["FILE_STORAGE_PATH"]; v != "" {
-			s.storagePath = v
-		}
-		if v := configOptions.envVars["DATABASE_DSN"]; v != "" {
-			s.db_DSN = v
-		}
+	if v := configOptions.envVars["BASE_URL"]; v != "" {
+		s.baseURL = v
+	}
+	if v := configOptions.envVars["SERVER_ADDRESS"]; v != "" {
+		s.srvAddr = v
+	}
+	if v := configOptions.envVars["FILE_STORAGE_PATH"]; v != "" {
+		s.storagePath = v
+	}
+	if v := configOptions.envVars["DATABASE_DSN"]; v != "" {
+		s.db_DSN = v
 	}
 
-	fs := flag.NewFlagSet("myFS", flag.ContinueOnError)
-	if !fs.Parsed() {
-		fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
-		fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
-		fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
-		fs.StringVar(&s.db_DSN, "d", s.db_DSN, "db connection path")
-		//fs.Parse(os.Args[1:])
-		fs.Parse(configOptions.osArgs)
+	if !configOptions.ignoreOsArgs {
+		fs := flag.NewFlagSet("myFS", flag.ContinueOnError)
+		if !fs.Parsed() {
+			fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
+			fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
+			fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
+			fs.StringVar(&s.db_DSN, "d", s.db_DSN, "db connection path")
+			//fs.Parse(os.Args[1:])
+			fs.Parse(configOptions.osArgs)
+		}
 	}
 
 	return s
