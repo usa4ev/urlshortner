@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"log"
@@ -15,9 +14,9 @@ import (
 
 func main() {
 	// The HTTP Server
-	config := configrw.NewConfig()
+	//config := configrw.NewConfig()
 	myShortener := shortener.NewShortener()
-	server := &http.Server{Addr: config.SrvAddr(), Handler: router.NewRouter(myShortener)}
+	server := &http.Server{Addr: "localhost:8080", Handler: router.NewRouter(myShortener)}
 
 	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
