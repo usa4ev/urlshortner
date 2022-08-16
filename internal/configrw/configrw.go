@@ -75,7 +75,7 @@ func NewConfig(opts ...configOption) Config {
 			fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 			fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 			fs.StringVar(&s.db_DSN, "d", s.db_DSN, "db connection path")
-			//fs.Parse(os.Args[1:])
+
 			fs.Parse(configOptions.osArgs)
 		}
 	}
