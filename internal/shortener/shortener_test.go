@@ -2,11 +2,13 @@ package shortener_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"io"
 	"net"
 	"net/http"
@@ -22,7 +24,6 @@ import (
 )
 
 const (
-	host   string = "localhost:8080"
 	ctXML  string = "application/xml"
 	ctJSON string = "application/json"
 	ctText string = "text/plain"
@@ -82,7 +83,7 @@ func Test_MakeShort(t *testing.T) {
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
-	defer resetStorage(config.StoragePath())
+	resetStorage(config.StoragePath(), config.DB_DSN())
 
 	defer ts.Close()
 
@@ -139,11 +140,11 @@ func Test_MakeShortJSON(t *testing.T) {
 	cl := newTestClient(ts)
 
 	defer ts.Close()
-	defer resetStorage(config.StoragePath())
+	resetStorage(config.StoragePath(), config.DB_DSN())
 
 	for _, tt := range cases {
 		t.Run("POST JSON", func(t *testing.T) {
-			require.NoError(t, resetStorage(config.StoragePath()), "failed to reset storage")
+			require.NoError(t, resetStorage(config.StoragePath(), config.DB_DSN()), "failed to reset storage")
 
 			req := struct {
 				URL string `json:"url"`
@@ -177,7 +178,7 @@ func Test_MakeShortJSON(t *testing.T) {
 	}
 
 	t.Run("Wrong content type header", func(t *testing.T) {
-		defer resetStorage(config.StoragePath())
+		resetStorage(config.StoragePath(), config.DB_DSN())
 		tt := cases[0]
 		req := struct {
 			URL string `json:"url"`
@@ -205,16 +206,13 @@ func Test_MakeShortJSON(t *testing.T) {
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
 	config := configrw.NewConfig()
-	resetStorage(config.StoragePath())
+	resetStorage(config.StoragePath(), config.DB_DSN())
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
 
 	t.Run("Empty storage", func(t *testing.T) {
 		cl := newTestClient(ts)
-
-		defer resetStorage(config.StoragePath())
-
 		tt := cases[0]
 		res, err := cl.Get(tt.want)
 		require.NoError(t, err, "url: %v", tt.url)
@@ -232,7 +230,7 @@ func Test_MakeLong(t *testing.T) {
 	cl := newTestClient(ts)
 
 	t.Run("Get URL", func(t *testing.T) {
-		defer resetStorage(config.StoragePath())
+		resetStorage(config.StoragePath(), config.DB_DSN())
 		for _, tt := range cases {
 			res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 			require.NoError(t, err, "url: %v", tt.url)
@@ -252,10 +250,10 @@ func Test_MakeLong(t *testing.T) {
 	})
 
 	t.Run("Get nonexistent url", func(t *testing.T) {
-		if err := resetStorage(config.StoragePath()); err != nil {
+		if err := resetStorage(config.StoragePath(), config.DB_DSN()); err != nil {
 			require.NoError(t, err, "failed to reset storage")
 		}
-		defer resetStorage(config.StoragePath())
+		resetStorage(config.StoragePath(), config.DB_DSN())
 		tt := cases[0]
 		res, err := cl.Get(tt.want + "i")
 		require.NoError(t, err, "url: %v", tt.url)
@@ -266,7 +264,7 @@ func Test_MakeLong(t *testing.T) {
 	tt := cases[0]
 
 	t.Run("Get gzipMW", func(t *testing.T) {
-		defer resetStorage(config.StoragePath())
+		resetStorage(config.StoragePath(), config.DB_DSN())
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
 		require.Equal(t, http.StatusCreated, res.StatusCode)
@@ -279,20 +277,31 @@ func Test_MakeLong(t *testing.T) {
 	})
 }
 
-func resetStorage(path string) error {
+func resetStorage(path, dsn string) error {
 	// path is not set, quit wo error
 	if path == "" {
 		return nil
 	}
 
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		// path does not exist, nothing to delete
-		return nil
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(path); err != nil {
+			return err
+		}
 	}
 
-	if err := os.Remove(path); err != nil {
+	db := database.New(dsn, context.Background())
+	defer db.Close()
+	_, err := db.Query("TRUNCATE TABLE  urls")
+
+	if err != nil {
 		return err
 	}
+
+	_, err = db.Query("TRUNCATE TABLE users")
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("storage reset successful")
 
 	return nil

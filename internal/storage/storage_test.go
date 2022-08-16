@@ -1,12 +1,14 @@
 package storage_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/usa4ev/urlshortner/internal/configrw"
@@ -20,9 +22,8 @@ type storer struct {
 
 func TestStorage(t *testing.T) {
 	config := configrw.NewConfig()
-	storagePath := config.StoragePath()
-	resetStorage(config.StoragePath())
-	defer resetStorage(config.StoragePath())
+	resetStorage(config.StoragePath(), config.DB_DSN())
+	defer resetStorage(config.StoragePath(), config.DB_DSN())
 
 	count := 100
 	userID := "testUsr"
@@ -32,16 +33,16 @@ func TestStorage(t *testing.T) {
 		args["test"+strconv.Itoa(i)] = storer{"test" + strconv.Itoa(i), userID}
 	}
 
-	data := storage.NewStorage(storagePath)
+	data := storage.New(config)
 
 	for k, v := range args {
-		err := data.Append(k, v.url, v.userID, storagePath)
+		err := data.StoreURL(k, v.url, v.userID)
 		require.NoError(t, err, "failed to append storage")
 	}
 
 	require.NoError(t, data.Flush())
 
-	dataRead := storage.NewStorage(storagePath)
+	/*dataRead := storage.New(config)
 
 	data.Range(func(k, v any) bool {
 		urlact, ok := dataRead.LoadURL(k.(string))
@@ -50,29 +51,42 @@ func TestStorage(t *testing.T) {
 		assert.Equal(t, urlexp, urlact, "failed to read from storage")
 
 		return true
-	})
+	})*/
 
-	res := data.LoadByUser(userID)
-	assert.Equal(t, len(res), count, "failed to read from storage by user")
+	/*	res := data.LoadByUser(userID)
+		assert.Equal(t, len(res), count, "failed to read from storage by user")
 
-	res = data.LoadByUser(userID + "0")
-	assert.Equal(t, len(res), 0, "failed to read from storage by user")
+		res = data.LoadByUser(userID + "0")
+		assert.Equal(t, len(res), 0, "failed to read from storage by user")
+	*/
 }
 
-func resetStorage(path string) error {
+func resetStorage(path, dsn string) error {
 	// path is not set, quit wo error
 	if path == "" {
 		return nil
 	}
 
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		// path does not exist, nothing to delete
-		return nil
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(path); err != nil {
+			return err
+		}
 	}
 
-	if err := os.Remove(path); err != nil {
+	db := database.New(dsn, context.Background())
+	defer db.Close()
+	_, err := db.Query("TRUNCATE TABLE  urls")
+
+	if err != nil {
 		return err
 	}
+
+	_, err = db.Query("TRUNCATE TABLE users")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("storage reset successful")
 
 	return nil
 }

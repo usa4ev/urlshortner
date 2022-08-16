@@ -11,21 +11,21 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/storage"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"io"
 	"log"
 	"net/http"
-	"sync"
-
-	"github.com/usa4ev/urlshortner/internal/configrw"
-	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
 const (
 	ctJSON       string     = "application/json"
 	key          string     = "9cc1ee455a3363ffc504f40006f70d0c8276648a5d3eb3f9524e94d1b7a83aef"
-	CtxKeyUserID contextKey = 0
+	ctxKeyUserID contextKey = 0
 )
 
 type (
@@ -33,13 +33,20 @@ type (
 		storage  *storage.Storage
 		Config   configrw.Config
 		handlers []handler
-		sessions *sync.Map
 	}
 	urlreq struct {
 		URL string `json:"url"`
 	}
 	urlres struct {
 		Result string `json:"result"`
+	}
+	urlwid struct {
+		CorrelationId string `json:"correlation_id"`
+		OriginalUrl   string `json:"original_url"`
+	}
+	urlwidres struct {
+		CorrelationId string `json:"correlation_id"`
+		ShortUrl      string `json:"short_url"`
 	}
 	handler struct {
 		Method      string
@@ -53,33 +60,61 @@ type (
 func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
-	s.storage = storage.NewStorage(s.Config.StoragePath())
-	s.sessions = &sync.Map{}
+	s.storage = storage.New(s.Config)
 	s.handlers = []handler{
 		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW, s.authMW}},
 		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW, s.authMW}},
+		{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), chi.Middlewares{gzipMW, s.authMW}},
+		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW, s.authMW}},
 		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), chi.Middlewares{gzipMW, s.authMW}},
+		{"GET", "/ping", http.HandlerFunc(s.pingStorage), chi.Middlewares{}},
 	}
 
 	return s
 }
 
+func (myShortener MyShortener) pingStorage(w http.ResponseWriter, r *http.Request) {
+	err := storage.Ping(myShortener.Config)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	userID := r.Context().Value(CtxKeyUserID).(string)
-	URL, err := readBody(r)
+	userID := r.Context().Value(ctxKeyUserID).(string)
+	originalURL, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	shortURL := myShortener.shortenURL(string(URL), userID)
+	id, url := myShortener.shortenURL(string(originalURL))
+	err = myShortener.storeURL(id, string(originalURL), userID)
+	if err != nil {
+		if errors.Is(err, database.ErrConflict) {
+			errorText := err.Error()
+			_, err = io.WriteString(w, url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			http.Error(w, errorText, http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
 
-	_, err = io.WriteString(w, shortURL)
+	_, err = io.WriteString(w, url)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -96,7 +131,11 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 
 	defer r.Body.Close()
 
-	userID := r.Context().Value(CtxKeyUserID).(string)
+	var userID string
+	if rawUserID := r.Context().Value(ctxKeyUserID); rawUserID != nil {
+		userID = rawUserID.(string)
+	}
+
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -111,7 +150,75 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	res := urlres{myShortener.shortenURL(message.URL, userID)}
+	enc := json.NewEncoder(w)
+	id, url := myShortener.shortenURL(message.URL)
+	res := urlres{url}
+	err = myShortener.storeURL(id, message.URL, userID)
+	if err != nil {
+		if errors.Is(err, database.ErrConflict) {
+			errorText := err.Error()
+			if err := enc.Encode(res); err != nil {
+				http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			http.Error(w, errorText, http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", ctJSON)
+	w.WriteHeader(http.StatusCreated)
+
+	if err := enc.Encode(res); err != nil {
+		http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.Request) {
+	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
+		http.Error(w, "unsupported content type", http.StatusBadRequest)
+
+		return
+	}
+
+	defer r.Body.Close()
+
+	var userID string
+	if rawUserID := r.Context().Value(ctxKeyUserID); rawUserID != nil {
+		userID = rawUserID.(string)
+	}
+
+	body, err := readBody(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	message := make([]urlwid, 10)
+	res := make([]urlwidres, 10)
+	dec := json.NewDecoder(bytes.NewBuffer(body))
+
+	if err := dec.Decode(&message); err != nil {
+		http.Error(w, "failed to decode message: "+err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	for _, v := range message {
+		id, url := myShortener.shortenURL(v.OriginalUrl)
+		res = append(res, urlwidres{v.CorrelationId, url})
+		err = myShortener.storeURL(id, url, userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", ctJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -124,25 +231,28 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (myShortener *MyShortener) shortenURL(url, userID string) string {
-	key := base64.RawURLEncoding.EncodeToString([]byte(url))
-	storagePath := myShortener.Config.StoragePath()
-
-	if err := myShortener.storage.Append(key, url, userID, storagePath); err != nil {
-		panic("failed to write new values to storage:" + err.Error())
-	}
-
-	return myShortener.makeURL(key)
+func (myShortener *MyShortener) shortenURL(url string) (string, string) {
+	id := base64.RawURLEncoding.EncodeToString([]byte(url))
+	return id, myShortener.makeURL(id)
 }
 
-func (myShortener *MyShortener) makeURL(key string) string {
-	return myShortener.Config.BaseURL() + "/" + key
+func (myShortener *MyShortener) storeURL(id, url, userID string) error {
+	return myShortener.storage.StoreURL(id, url, userID)
+}
+
+func (myShortener *MyShortener) makeURL(id string) string {
+	return myShortener.Config.BaseURL() + "/" + id
 }
 
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
-	redirect, err := findURL(r.URL.Path[1:], myShortener)
+	id := r.URL.Path[1:]
+	redirect, err := myShortener.findURL(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+
+		return
+	} else if redirect == "" {
+		http.Error(w, fmt.Sprintf("id %v not found", id), http.StatusNotFound)
 
 		return
 	}
@@ -151,8 +261,14 @@ func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request)
 }
 
 func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(CtxKeyUserID)
-	res := myShortener.storage.LoadByUser(userID.(string))
+	userID := r.Context().Value(ctxKeyUserID)
+	res, err := myShortener.storage.LoadByUser(myShortener.makeURL, userID.(string))
+	if err != nil {
+		http.Error(w, "failed to load data: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	if len(res) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -168,17 +284,9 @@ func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func findURL(key string, myShortener *MyShortener) (string, error) {
-	if url, ok := myShortener.storage.LoadURL(key); ok {
-		return url, nil
-	}
-
-	return "", errors.New("url not found")
+func (myShortener *MyShortener) findURL(key string) (string, error) {
+	return myShortener.storage.LoadURL(key)
 }
-
-/*func NewRouter() *chi.Mux {
-	return chi.NewRouter()
-}*/
 
 type gzipWriter struct {
 	http.ResponseWriter
@@ -256,14 +364,19 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 
 		var usrID string
 
-		s := myShortener.sessions
-		if val, ok := s.Load(token); ok && val == token {
-			usrID = val.(string)
+		s := myShortener.storage
+		val, err := s.LoadUser(token)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to restore session: \n%v", err.Error()), http.StatusInternalServerError)
+		}
+
+		if val != "" {
+			usrID = val
 		} else {
 			usrID = uuid.New().String()
 			newToken, err := sealToken(usrID)
 			errHandler(err)
-			myShortener.sessions.Store(newToken, usrID)
+			s.StoreSession(usrID, newToken)
 		}
 
 		setCookie(w, "userID", usrID)
@@ -332,7 +445,7 @@ func sealToken(usrID string) (string, error) {
 }
 
 func ctxWithSession(r *http.Request, usrID string) *http.Request {
-	ctx := context.WithValue(r.Context(), CtxKeyUserID, usrID)
+	ctx := context.WithValue(r.Context(), ctxKeyUserID, usrID)
 	return r.WithContext(ctx)
 }
 
