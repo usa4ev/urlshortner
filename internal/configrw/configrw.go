@@ -11,7 +11,15 @@ type Config struct {
 	storagePath string
 	db_DSN      string
 }
-type configOption func(o *configOptions)
+type (
+	configOption func(o *configOptions)
+
+	configOptions struct {
+		osArgs       []string
+		envVars      map[string]string
+		ignoreOsArgs bool
+	}
+)
 
 func withOsArgs(osArgs []string) configOption {
 	return func(o *configOptions) {
@@ -25,16 +33,10 @@ func withEnvVars(envVars map[string]string) configOption {
 	}
 }
 
-func WithEnv() configOption {
+func ignoreOsArgs() configOption {
 	return func(o *configOptions) {
-		o.allowEnv = true
+		o.ignoreOsArgs = true
 	}
-}
-
-type configOptions struct {
-	osArgs   []string
-	envVars  map[string]string
-	allowEnv bool
 }
 
 func NewConfig(opts ...configOption) Config {
@@ -53,7 +55,7 @@ func NewConfig(opts ...configOption) Config {
 	}
 	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
 
-	if configOptions.allowEnv {
+	if configOptions.ignoreOsArgs {
 		if v := configOptions.envVars["BASE_URL"]; v != "" {
 			s.baseURL = v
 		}

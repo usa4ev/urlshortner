@@ -53,8 +53,12 @@ func (db database) initDB() error {
 				id VARCHAR(100) PRIMARY KEY,
 					session VARCHAR(256));`
 
-	_, err := db.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
+		return err
+	}
+	if err = rows.Err(); err != nil {
+		log.Printf("Error %s when lodaing URL using id %v", err)
 		return err
 	}
 
@@ -64,7 +68,14 @@ func (db database) initDB() error {
 					user_id VARCHAR(38),
 					FOREIGN KEY (user_id)
 				REFERENCES users (id));`
-	_, err = db.Query(query)
+	rows, err = db.Query(query)
+	if err != nil {
+		return err
+	}
+	if err = rows.Err(); err != nil {
+		log.Printf("Error %s when lodaing URL using id %v", err)
+		return err
+	}
 
 	return err
 }
@@ -127,8 +138,11 @@ func (db database) LoadURL(id string) (string, error) {
 	query = "SELECT url FROM urls WHERE id = $1"
 	rows, err = db.QueryContext(ctx, query, id)
 	defer rows.Close()
-
 	if err != nil {
+		log.Printf("Error %s when lodaing URL using id %v", err, id)
+		return "", err
+	}
+	if err = rows.Err(); err != nil {
 		log.Printf("Error %s when lodaing URL using id %v", err, id)
 		return "", err
 	}
