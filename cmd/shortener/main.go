@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,8 +17,7 @@ func main() {
 	// The HTTP Server
 	myShortener := shortener.NewShortener()
 	//r := router.NewRouter(myShortener)
-	r := chi.NewRouter()
-	r.Route("/", myShortener.DefaultRoute())
+	r := myShortener.NewRouter()
 	server := &http.Server{Addr: "localhost:8080", Handler: r}
 
 	// Server run context

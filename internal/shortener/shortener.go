@@ -472,7 +472,14 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 //	}
 //}
 
-func (s *MyShortener) DefaultRoute() func(r chi.Router) {
+func (s *MyShortener) NewRouter() http.Handler {
+	r := chi.NewRouter()
+	r.Route("/", s.defaultRoute())
+
+	return r
+}
+
+func (s *MyShortener) defaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 
 		r.With(gzipMW, s.authMW).Method("POST", "/", http.HandlerFunc(s.MakeShort))
