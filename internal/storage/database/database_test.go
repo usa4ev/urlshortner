@@ -2,10 +2,11 @@ package database
 
 import (
 	"context"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/usa4ev/urlshortner/internal/configrw"
-	"testing"
 )
 
 func resetStorage(dsn string) error {
@@ -25,7 +26,6 @@ func resetStorage(dsn string) error {
 func TestPingdb(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
 	defer resetStorage(config.DBDSN())
-	//db := New(config.DBDSN(), context.Background()))
 
 	type args struct {
 		dsn string
@@ -46,6 +46,7 @@ func TestPingdb(t *testing.T) {
 			true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := Pingdb(tt.args.dsn); (err != nil) != tt.wantErr {
@@ -88,7 +89,6 @@ func Test_ims_StoreLoad(t *testing.T) {
 	})
 
 	t.Run("Load user ID LoadUser()", func(t *testing.T) {
-
 		got, err := storage.LoadUser(testSession)
 		if err != nil {
 			require.NoError(t, err, "LoadUser() error")
@@ -106,7 +106,6 @@ func Test_ims_StoreLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("Load URL's", func(t *testing.T) {
-
 			got, err := storage.LoadURL(tt.id)
 			if err != nil {
 				require.NoError(t, err, "LoadURL() error")
@@ -135,5 +134,4 @@ func Test_ims_StoreLoad(t *testing.T) {
 		}
 		assert.Equal(t, c, len(p), "got wrong number of url by user %v", testUserID)
 	})
-
 }

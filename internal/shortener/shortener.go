@@ -12,14 +12,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
-	"io"
-	"log"
-	"net/http"
 )
 
 const (
@@ -69,7 +70,6 @@ func NewShortener() *MyShortener {
 
 func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Request) {
 	err := storage.Ping(myShortener.Config)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -94,9 +94,10 @@ func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request
 			http.Error(w, url, http.StatusConflict)
 
 			return
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
@@ -145,6 +146,7 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		if errors.Is(err, database.ErrConflict) {
 			errorText := err.Error()
+
 			if err := enc.Encode(res); err != nil {
 				http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
 
@@ -187,8 +189,8 @@ func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	message := make([]urlwid, 10)
-	res := make([]urlwidres, 10)
+	message := make([]urlwid, 0)
+	res := make([]urlwidres, 0)
 	dec := json.NewDecoder(bytes.NewBuffer(body))
 
 	if err := dec.Decode(&message); err != nil {
@@ -367,7 +369,8 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 			usrID = uuid.New().String()
 			newToken, err := sealToken(usrID)
 			errHandler(err)
-			s.StoreSession(usrID, newToken)
+			err = s.StoreSession(usrID, newToken)
+			errHandler(err)
 		}
 
 		setCookie(w, "userID", usrID)

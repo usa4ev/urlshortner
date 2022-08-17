@@ -2,8 +2,9 @@ package inmemory
 
 import (
 	"fmt"
-	"github.com/usa4ev/urlshortner/internal/storage/inmemory/filestorage"
 	"sync"
+
+	"github.com/usa4ev/urlshortner/internal/storage/inmemory/filestorage"
 )
 
 type (
@@ -17,11 +18,6 @@ type (
 		url    string
 		userID string
 	}
-	pairs []pair
-	pair  struct {
-		shortURL    string
-		originalURL string
-	}
 	config interface {
 		StoragePath() string
 	}
@@ -30,9 +26,6 @@ type (
 		Store([]string) error
 		Flush() error
 	}
-	adder interface {
-		Add(shortURL, originalURL string)
-	}
 )
 
 func New(c config) ims {
@@ -40,11 +33,12 @@ func New(c config) ims {
 
 	storagePath := c.StoragePath()
 	if storagePath != "" {
-		//setting up file storage if required
+		// setting up file storage if required
 		i.fileManager = filestorage.New(storagePath)
+
 		data, err := i.fileManager.ReadFile()
 		if err != nil {
-			panic(fmt.Errorf("failed to read from storage: %v", err.Error()))
+			panic(fmt.Errorf("failed to read from storage: %w", err.Error()))
 		}
 
 		i.data = data
@@ -59,6 +53,7 @@ func (s ims) LoadURL(id string) (string, error) {
 	if val, ok := s.data.Load(id); ok {
 		return val.(storer).url, nil
 	}
+
 	return "", fmt.Errorf("cannot find url by id %v", id)
 }
 
@@ -67,6 +62,7 @@ func (s ims) LoadUrlsByUser(add func(id, url string), userid string) error {
 		if value.(storer).userID == userid {
 			add(key.(string), value.(storer).url)
 		}
+
 		return true
 	}
 	s.data.Range(f)
@@ -76,6 +72,7 @@ func (s ims) LoadUrlsByUser(add func(id, url string), userid string) error {
 
 func (s ims) StoreURL(id, url, userid string) error {
 	var err error
+
 	if _, ok := s.data.LoadOrStore(id, storer{url, userid}); ok {
 		return nil
 	}

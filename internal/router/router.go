@@ -1,8 +1,9 @@
 package router
 
 import (
-	"github.com/go-chi/chi"
 	"net/http"
+
+	"github.com/go-chi/chi"
 )
 
 type (
@@ -38,5 +39,6 @@ func Middlewares(h ...func(http.Handler) http.Handler) chi.Middlewares {
 	for _, f := range h {
 		mws = append(mws, f)
 	}
+
 	return mws
 }

@@ -7,14 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/usa4ev/urlshortner/internal/shortener"
-	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 
 	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/router"
@@ -208,6 +209,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 	config := configrw.NewConfig()
 	resetStorage(config.StoragePath(), config.DBDSN())
 	cases := getTests(config.BaseURL())
+
 	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
 
@@ -224,6 +226,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 func Test_MakeLong(t *testing.T) {
 	config := configrw.NewConfig()
 	cases := getTests(config.BaseURL())
+
 	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
 

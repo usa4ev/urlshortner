@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
 )
@@ -30,34 +31,16 @@ type (
 		StoreSession(id, session string) error
 		Flush() error
 	}
-
-	fileStorage interface {
-		LoadAll()
-		Append()
-		Flush() error
-	}
 )
 
 func New(c config) *Storage {
 	dsn := c.DBDSN()
 	if dsn == "" {
 		return &Storage{inmemory.New(c)}
-	} else {
-		return &Storage{database.New(dsn, context.Background())}
 	}
-}
 
-/*func (s *Storage) Store(id, url, userid string) error {
-	return s.StoreURL(id, url, userid)
-}*/
-/*
-func (s *Storage) Flush() error {
-	return s.Flush()
-}*/
-/*
-func (s Storage) LoadURL(id string) (string, error) {
-	return s.LoadURL(id)
-}*/
+	return &Storage{database.New(dsn, context.Background())}
+}
 
 func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pairs, error) {
 	p := pairs{}
@@ -67,10 +50,6 @@ func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pair
 	err := s.LoadUrlsByUser(f, userID)
 
 	return p, err
-}
-
-func (p *pairs) add(shortURL, originalURL string) {
-	*p = append(*p, Pair{shortURL, originalURL})
 }
 
 func Ping(c config) error {

@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	_ "github.com/golang/mock/mockgen/model"
-	_ "github.com/jackc/pgx/stdlib"
 	"log"
 	"time"
+
+	_ "github.com/golang/mock/mockgen/model"
+	_ "github.com/jackc/pgx/stdlib"
 )
 
 type (
@@ -30,6 +31,7 @@ func New(dsn string, ctx context.Context) database {
 		err error
 	)
 	db.ctx = ctx
+
 	db.DB, err = sql.Open("pgx", dsn)
 	if err != nil {
 		panic(err.Error())
@@ -69,6 +71,7 @@ func (db database) initDB() error {
 					user_id VARCHAR(38),
 					FOREIGN KEY (user_id)
 				REFERENCES users (id));`
+
 	rows, err = db.Query(query)
 	if err != nil {
 		return err
@@ -201,6 +204,7 @@ func (db database) LoadUrlsByUser(add func(id, url string), userid string) error
 func (db database) LoadUser(session string) (string, error) {
 	var url string
 	query := "SELECT id FROM users WHERE session = $1"
+
 	ctx, cancelfunc := context.WithTimeout(db.ctx, 5*time.Second)
 	defer cancelfunc()
 

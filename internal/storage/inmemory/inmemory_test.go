@@ -2,12 +2,13 @@ package inmemory_test
 
 import (
 	"errors"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
-	"os"
-	"testing"
 )
 
 func resetStorage(path string) error {
@@ -18,7 +19,7 @@ func resetStorage(path string) error {
 
 	_, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		//ignore
+		// ignore
 	} else if !errors.Is(err, os.ErrNotExist) && err != nil {
 		return err
 	} else {
@@ -33,6 +34,7 @@ func resetStorage(path string) error {
 func Test_ims_StoreLoadURL(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
 	defer resetStorage(config.StoragePath())
+
 	testUserID := "testuser"
 
 	type args struct {
@@ -40,6 +42,7 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		url,
 		userid string
 	}
+
 	tests := []args{
 		{
 			"1",
@@ -65,7 +68,6 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("Load URL's", func(t *testing.T) {
-
 			got, err := storage.LoadURL(tt.id)
 			if err != nil {
 				require.NoError(t, err, "LoadURL() error")
@@ -94,7 +96,6 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		}
 		assert.Equal(t, c, len(p), "got wrong number of url's by user %v", testUserID)
 	})
-
 }
 
 func Test_ims_StoreLoadUserInfo(t *testing.T) {
@@ -105,6 +106,7 @@ func Test_ims_StoreLoadUserInfo(t *testing.T) {
 		session,
 		userid string
 	}
+
 	tests := []args{
 		{
 			"token",
@@ -124,7 +126,6 @@ func Test_ims_StoreLoadUserInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("Load user ID", func(t *testing.T) {
-
 			got, err := storage.LoadUser(tt.session)
 			if err != nil {
 				require.NoError(t, err, "LoadUser() error")
