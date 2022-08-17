@@ -33,7 +33,7 @@ func withEnvVars(envVars map[string]string) configOption {
 	}
 }
 
-func ignoreOsArgs() configOption {
+func IgnoreOsArgs() configOption {
 	return func(o *configOptions) {
 		o.ignoreOsArgs = true
 	}

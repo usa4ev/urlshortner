@@ -2,23 +2,41 @@ package router
 
 import (
 	"github.com/go-chi/chi"
-	"github.com/usa4ev/urlshortner/internal/shortener"
 	"net/http"
 )
 
-type Router chi.Router
+type (
+	Router  chi.Router
+	handled interface {
+		Handlers() []HandlerDesc
+	}
+	HandlerDesc struct {
+		Method      string
+		Path        string
+		Handler     http.Handler
+		Middlewares chi.Middlewares
+	}
+)
 
-func NewRouter(myShortener *shortener.MyShortener) http.Handler {
+func NewRouter(h handled) http.Handler {
 	r := chi.NewRouter()
-	r.Route("/", defaultRoute(myShortener))
+	r.Route("/", defaultRoute(h))
 
 	return r
 }
 
-func defaultRoute(shortener *shortener.MyShortener) func(r chi.Router) {
+func defaultRoute(h handled) func(r chi.Router) {
 	return func(r chi.Router) {
-		for _, route := range shortener.Handlers() {
+		for _, route := range h.Handlers() {
 			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
 		}
 	}
+}
+
+func Middlewares(h ...func(http.Handler) http.Handler) chi.Middlewares {
+	mws := chi.Middlewares{}
+	for _, f := range h {
+		mws = append(mws, f)
+	}
+	return mws
 }

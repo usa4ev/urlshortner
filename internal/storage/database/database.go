@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	_ "github.com/golang/mock/mockgen/model"
 	_ "github.com/jackc/pgx/stdlib"
 	"log"
 	"time"
@@ -58,7 +59,7 @@ func (db database) initDB() error {
 		return err
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Error %s when lodaing URL using id %v", err)
+		log.Printf("Error %s when creating table users", err)
 		return err
 	}
 
@@ -73,7 +74,7 @@ func (db database) initDB() error {
 		return err
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Error %s when lodaing URL using id %v", err)
+		log.Printf("Error %s when creating table urls", err)
 		return err
 	}
 

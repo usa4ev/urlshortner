@@ -12,9 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"io"
@@ -32,7 +32,7 @@ type (
 	MyShortener struct {
 		storage  *storage.Storage
 		Config   configrw.Config
-		handlers []handler
+		handlers []router.HandlerDesc
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -48,12 +48,6 @@ type (
 		CorrelationId string `json:"correlation_id"`
 		ShortUrl      string `json:"short_url"`
 	}
-	handler struct {
-		Method      string
-		Path        string
-		Handler     http.Handler
-		Middlewares chi.Middlewares
-	}
 	contextKey int
 )
 
@@ -61,13 +55,13 @@ func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
-	s.handlers = []handler{
-		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW, s.authMW}},
-		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW, s.authMW}},
-		{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/ping", http.HandlerFunc(s.pingStorage), chi.Middlewares{}},
+	s.handlers = []router.HandlerDesc{
+		{"POST", "/", http.HandlerFunc(s.makeShort), router.Middlewares(gzipMW, s.authMW)},
+		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), router.Middlewares(gzipMW, s.authMW)},
+		{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), router.Middlewares(gzipMW, s.authMW)},
+		{"GET", "/{id}", http.HandlerFunc(s.makeLong), router.Middlewares(gzipMW, s.authMW)},
+		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), router.Middlewares(gzipMW, s.authMW)},
+		{"GET", "/ping", http.HandlerFunc(s.pingStorage), router.Middlewares(gzipMW, s.authMW)},
 	}
 
 	return s
@@ -460,7 +454,7 @@ func newNonce(aesgcm cipher.AEAD, err error) ([]byte, error) {
 	return nonce, err
 }
 
-func (myShortener *MyShortener) Handlers() []handler {
+func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
 	return myShortener.handlers
 }
 

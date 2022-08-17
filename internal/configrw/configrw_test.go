@@ -23,7 +23,7 @@ func TestNewConfig(t *testing.T) {
 		},
 		{
 			name: "envs only",
-			opts: []configOption{ignoreOsArgs(), withOsArgs([]string{}), withEnvVars(map[string]string{
+			opts: []configOption{IgnoreOsArgs(), withOsArgs([]string{}), withEnvVars(map[string]string{
 				"BASE_URL":          "http://localhost:5555",
 				"SERVER_ADDRESS":    "localhost:5555",
 				"FILE_STORAGE_PATH": "/storageTest.csv",
