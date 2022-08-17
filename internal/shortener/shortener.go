@@ -34,7 +34,7 @@ type (
 	MyShortener struct {
 		storage  *storage.Storage
 		Config   configrw.Config
-		Handlers []router.HandlerDesc
+		handlers []handler
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -51,13 +51,19 @@ type (
 		ShortURL      string `json:"short_url"`
 	}
 	contextKey int
+	handler    struct {
+		Method      string
+		Path        string
+		Handler     http.Handler
+		Middlewares chi.Middlewares
+	}
 )
 
 func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
-	s.Handlers = []router.HandlerDesc{
+	s.handlers = []handler{
 		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
@@ -455,54 +461,54 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 	return nonce, err
 }
 
-//func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-//	//return myShortener.Handlers
+func (myShortener *MyShortener) Handlers() []handler {
+	return myShortener.handlers
+
+	//handlers := []router.HandlerDesc{
+	//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+	//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+	//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+	//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+	//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+	//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
+	//}
+	//
+	//for v := range handlers{
+	//
+	//}
+}
+
+//func (s *MyShortener) NewRouter() http.Handler {
+//	r := chi.NewRouter()
+//	r.Route("/", s.defaultRoute())
 //
-//	Handlers := []router.HandlerDesc{
-//		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
-//	}
+//	return r
+//}
 //
-//	for v := range Handlers{
+//func (s *MyShortener) defaultRoute() func(r chi.Router) {
+//	return func(r chi.Router) {
 //
+//		//r.Method("POST", "/", http.HandlerFunc(s.makeShort))
+//		//r.Method("GET", "/{id}", http.HandlerFunc(s.makeLong))
+//
+//		for _, route := range s.handlers {
+//			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
+//		}
+//
+//		//handlers := []router.HandlerDesc{
+//		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+//		//}
+//		//
+//		//for _, route := range handlers {
+//		//	r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
+//		//}
 //	}
 //}
-
-func (s *MyShortener) NewRouter() http.Handler {
-	r := chi.NewRouter()
-	r.Route("/", s.defaultRoute())
-
-	return r
-}
-
-func (s *MyShortener) defaultRoute() func(r chi.Router) {
-	return func(r chi.Router) {
-
-		//r.Method("POST", "/", http.HandlerFunc(s.makeShort))
-		//r.Method("GET", "/{id}", http.HandlerFunc(s.makeLong))
-
-		for _, route := range s.Handlers {
-			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-		}
-
-		//Handlers := []router.HandlerDesc{
-		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//}
-		//
-		//for _, route := range Handlers {
-		//	r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-		//}
-	}
-}
 
 func (myShortener *MyShortener) FlushStorage() {
 	if err := myShortener.storage.Flush(); err != nil {
