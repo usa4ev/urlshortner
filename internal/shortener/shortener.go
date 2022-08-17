@@ -343,6 +343,7 @@ func gzipMW(next http.Handler) http.Handler {
 func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
+		var usrID string
 
 		errHandler := func(err error) {
 			if err != nil {
@@ -351,12 +352,14 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 		}
 		var token string
 		cookie, err := r.Cookie("userID")
-		if err == nil {
-			token, err = openToken(cookie.String())
+		if err != nil {
 			errHandler(err)
+		} else {
+			token, err = openToken(cookie.String())
+			if err != nil {
+				log.Printf("failed to open passed uder ID %v", token)
+			}
 		}
-
-		var usrID string
 
 		s := myShortener.storage
 		val, err := s.LoadUser(token)
