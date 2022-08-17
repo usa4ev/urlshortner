@@ -1,19 +1,20 @@
 package main
 
 import (
-	"errors"
 	"github.com/go-chi/chi"
+	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"net/http"
 )
 
 func main() {
-	// The HTTP Server
-	myShortener := shortener.NewShortener()
-	//r := router.NewRouter(myShortener)
-	r := NewRouter(myShortener)
-	server := &http.Server{Addr: "localhost:8080", Handler: r}
-
+	router.ListenAndServe()
+	//// The HTTP Server
+	//myShortener := shortener.NewShortener()
+	////r := router.NewRouter(myShortener)
+	//r := NewRouter(myShortener)
+	//server := &http.Server{Addr: "localhost:8080", Handler: r}
+	//
 	//// Server run context
 	//serverCtx, serverStopCtx := context.WithCancel(context.Background())
 	//fmt.Println("addr: " + myShortener.Config.SrvAddr())
@@ -43,14 +44,14 @@ func main() {
 	//	}
 	//	serverStopCtx()
 	//}()
-
-	// Run the server
-	err := server.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		panic(err.Error())
-	}
-
-	// Wait for server context to be stopped
+	//
+	//// Run the server
+	//err := server.ListenAndServe()
+	//if err != nil && !errors.Is(err, http.ErrServerClosed) {
+	//	panic(err.Error())
+	//}
+	//
+	//// Wait for server context to be stopped
 	//<-serverCtx.Done()
 }
 
