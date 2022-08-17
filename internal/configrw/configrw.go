@@ -1,6 +1,7 @@
 package configrw
 
 import (
+	"flag"
 	"os"
 )
 
@@ -54,7 +55,7 @@ func NewConfig(opts ...configOption) Config {
 	}
 	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
 
-	/*if v := configOptions.envVars["BASE_URL"]; v != "" {
+	if v := configOptions.envVars["BASE_URL"]; v != "" {
 		s.baseURL = v
 	}
 	if v := configOptions.envVars["SERVER_ADDRESS"]; v != "" {
@@ -77,7 +78,7 @@ func NewConfig(opts ...configOption) Config {
 
 			fs.Parse(configOptions.osArgs)
 		}
-	}*/
+	}
 
 	return s
 }
