@@ -40,3 +40,16 @@ func Middlewares(h ...func(http.Handler) http.Handler) chi.Middlewares {
 	}
 	return mws
 }
+
+func Route() func(r chi.Router) {
+	/*return func(r chi.Router) {
+		r.Get("/", Test)
+	}*/
+	return func(r chi.Router) {
+		r.Method("GET", "/", http.HandlerFunc(Test))
+	}
+}
+
+func Test(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusGone)
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/go-chi/chi"
+	"github.com/usa4ev/urlshortner/internal/router"
 	"net/http"
 )
 
@@ -10,7 +11,7 @@ func main() {
 	//config := configrw.NewConfig()
 	//myShortener := shortener.NewShortener()
 	r := chi.NewRouter()
-	r.Route("/", Route())
+	r.Route("/", router.Route())
 	server := &http.Server{Addr: "127.0.0.1:8080", Handler: r}
 
 	// Server run context
@@ -50,17 +51,4 @@ func main() {
 
 	// Wait for server context to be stopped
 	//<-serverCtx.Done()
-}
-
-func Test(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusGone)
-}
-
-func Route() func(r chi.Router) {
-	/*return func(r chi.Router) {
-		r.Get("/", Test)
-	}*/
-	return func(r chi.Router) {
-		r.Method("GET", "/", http.HandlerFunc(Test))
-	}
 }
