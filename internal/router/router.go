@@ -43,11 +43,8 @@ func Middlewares(h ...func(http.Handler) http.Handler) chi.Middlewares {
 }
 
 func Route(myShortener *shortener.MyShortener) func(r chi.Router) {
-	/*return func(r chi.Router) {
-		r.Get("/", Test)
-	}*/
 	return func(r chi.Router) {
-		r.Method("GET", "/", http.HandlerFunc(myShortener.MakeLong))
+		r.Get("/", myShortener.MakeLong)
 	}
 }
 
