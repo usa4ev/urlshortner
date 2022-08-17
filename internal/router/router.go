@@ -20,12 +20,12 @@ type (
 
 func NewRouter(h handled) http.Handler {
 	r := chi.NewRouter()
-	r.Route("/", defaultRoute(h))
+	r.Route("/", DefaultRoute(h))
 
 	return r
 }
 
-func defaultRoute(h handled) func(r chi.Router) {
+func DefaultRoute(h handled) func(r chi.Router) {
 	return func(r chi.Router) {
 		for _, route := range h.Handlers() {
 			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
