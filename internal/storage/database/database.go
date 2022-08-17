@@ -138,11 +138,13 @@ func (db database) LoadURL(id string) (string, error) {
 
 	query = "SELECT url FROM urls WHERE id = $1"
 	rows, err = db.QueryContext(ctx, query, id)
-	defer rows.Close()
 	if err != nil {
 		log.Printf("Error %s when lodaing URL using id %v", err, id)
 		return "", err
 	}
+
+	defer rows.Close()
+
 	if err = rows.Err(); err != nil {
 		log.Printf("Error %s when lodaing URL using id %v", err, id)
 		return "", err
@@ -172,12 +174,12 @@ func (db database) LoadUrlsByUser(add func(id, url string), userid string) error
 
 	query = "SELECT id, url FROM urls WHERE user_id = $1"
 	rows, err = db.QueryContext(ctx, query, userid)
-	defer rows.Close()
-
 	if err != nil {
 		log.Printf("Error %s when lodaing URL using id %v", err, userid)
 		return err
 	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		err = rows.Scan(&id, &url)
@@ -199,12 +201,12 @@ func (db database) LoadUser(session string) (string, error) {
 	defer cancelfunc()
 
 	rows, err := db.QueryContext(ctx, query, session)
-	defer rows.Close()
-
 	if err != nil {
 		log.Printf("Error %s when lodaing session using id %v", err, session)
 		return "", err
 	}
+
+	defer rows.Close()
 
 	if !rows.Next() {
 		return "", nil

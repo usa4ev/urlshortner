@@ -13,15 +13,19 @@ func resetStorage(dsn string) error {
 	db := New(dsn, context.Background())
 	defer db.Close()
 
-	_, err := db.Query("DROP TABLE urls, users")
+	rows, err := db.Query("DROP TABLE urls, users")
+
+	if rows.Err() != nil {
+		return rows.Err()
+	}
 
 	return err
 }
 
 func TestPingdb(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
-	defer resetStorage(config.DB_DSN())
-	//db := New(config.DB_DSN(), context.Background()))
+	defer resetStorage(config.DbDSN())
+	//db := New(config.DbDSN(), context.Background()))
 
 	type args struct {
 		dsn string
@@ -33,7 +37,7 @@ func TestPingdb(t *testing.T) {
 	}{
 		{
 			"with valid dsn",
-			args{config.DB_DSN()},
+			args{config.DbDSN()},
 			false,
 		},
 		{
@@ -53,7 +57,7 @@ func TestPingdb(t *testing.T) {
 
 func Test_ims_StoreLoad(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
-	resetStorage(config.DB_DSN())
+	resetStorage(config.DbDSN())
 	testUserID := "testuser"
 	testSession := "testSession"
 
@@ -75,7 +79,7 @@ func Test_ims_StoreLoad(t *testing.T) {
 		},
 	}
 
-	storage := New(config.DB_DSN(), context.Background())
+	storage := New(config.DbDSN(), context.Background())
 
 	t.Run("Store user info StoreSession()", func(t *testing.T) {
 		if err := storage.StoreSession(testUserID, testSession); err != nil {

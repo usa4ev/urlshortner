@@ -19,7 +19,7 @@ type (
 	}
 
 	config interface {
-		DB_DSN() string
+		DbDSN() string
 		StoragePath() string
 	}
 	storerLoader interface {
@@ -39,7 +39,7 @@ type (
 )
 
 func New(c config) *Storage {
-	dsn := c.DB_DSN()
+	dsn := c.DbDSN()
 	if dsn == "" {
 		return &Storage{inmemory.New(c)}
 	} else {
@@ -74,5 +74,5 @@ func (p *pairs) add(shortURL, originalURL string) {
 }
 
 func Ping(c config) error {
-	return database.Pingdb(c.DB_DSN())
+	return database.Pingdb(c.DbDSN())
 }

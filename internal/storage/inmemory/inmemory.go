@@ -44,7 +44,7 @@ func New(c config) ims {
 		i.fileManager = filestorage.New(storagePath)
 		data, err := i.fileManager.ReadFile()
 		if err != nil {
-			panic(fmt.Errorf("failed to read from storage: \n%v\n", err.Error()))
+			panic(fmt.Errorf("failed to read from storage: %v", err.Error()))
 		}
 
 		i.data = data
@@ -99,5 +99,9 @@ func (s ims) StoreSession(id, session string) error {
 }
 
 func (s ims) Flush() error {
-	return s.Flush()
+	if s.fileManager != nil {
+		return s.fileManager.Flush()
+	}
+
+	return nil
 }

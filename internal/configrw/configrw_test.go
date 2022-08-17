@@ -18,7 +18,7 @@ func TestNewConfig(t *testing.T) {
 				baseURL:     "http://localhost:5555",
 				srvAddr:     "localhost:5555",
 				storagePath: "/storageTest.csv",
-				db_DSN:      "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
+				dbDSN:       "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
 			},
 		},
 		{
@@ -33,7 +33,7 @@ func TestNewConfig(t *testing.T) {
 				baseURL:     "http://localhost:5555",
 				srvAddr:     "localhost:5555",
 				storagePath: "/storageTest.csv",
-				db_DSN:      "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
+				dbDSN:       "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
 			},
 		},
 	}

@@ -9,7 +9,7 @@ type Config struct {
 	baseURL     string
 	srvAddr     string
 	storagePath string
-	db_DSN      string
+	dbDSN       string
 }
 type (
 	configOption func(o *configOptions)
@@ -65,7 +65,7 @@ func NewConfig(opts ...configOption) Config {
 		s.storagePath = v
 	}
 	if v := configOptions.envVars["DATABASE_DSN"]; v != "" {
-		s.db_DSN = v
+		s.dbDSN = v
 	}
 
 	if !configOptions.ignoreOsArgs {
@@ -74,7 +74,7 @@ func NewConfig(opts ...configOption) Config {
 			fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
 			fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 			fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
-			fs.StringVar(&s.db_DSN, "d", s.db_DSN, "db connection path")
+			fs.StringVar(&s.dbDSN, "d", s.dbDSN, "db connection path")
 
 			fs.Parse(configOptions.osArgs)
 		}
@@ -95,6 +95,6 @@ func (c Config) StoragePath() string {
 	return c.storagePath
 }
 
-func (c Config) DB_DSN() string {
-	return c.db_DSN
+func (c Config) DbDSN() string {
+	return c.dbDSN
 }

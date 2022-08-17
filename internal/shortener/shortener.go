@@ -41,12 +41,12 @@ type (
 		Result string `json:"result"`
 	}
 	urlwid struct {
-		CorrelationId string `json:"correlation_id"`
-		OriginalUrl   string `json:"original_url"`
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
 	}
 	urlwidres struct {
-		CorrelationId string `json:"correlation_id"`
-		ShortUrl      string `json:"short_url"`
+		CorrelationID string `json:"correlation_id"`
+		ShortURL      string `json:"short_url"`
 	}
 	contextKey int
 )
@@ -56,12 +56,12 @@ func NewShortener() *MyShortener {
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
 	s.handlers = []router.HandlerDesc{
-		{"POST", "/", http.HandlerFunc(s.MakeShort), nil},
-		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), router.Middlewares(gzipMW, s.authMW)},
-		{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), router.Middlewares(gzipMW, s.authMW)},
-		{"GET", "/{id}", http.HandlerFunc(s.MakeLong), nil},
-		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), router.Middlewares(gzipMW, s.authMW)},
-		{"GET", "/ping", http.HandlerFunc(s.pingStorage), router.Middlewares(s.authMW)},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
 	}
 
 	return s
@@ -198,8 +198,8 @@ func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.
 	}
 
 	for _, v := range message {
-		id, url := myShortener.shortenURL(v.OriginalUrl)
-		res = append(res, urlwidres{v.CorrelationId, url})
+		id, url := myShortener.shortenURL(v.OriginalURL)
+		res = append(res, urlwidres{v.CorrelationID, url})
 		err = myShortener.storeURL(id, url, userID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -396,7 +396,7 @@ func openToken(token string) (string, error) {
 		return "", err
 	}
 
-	nonce, err := newNonce(aesgcm, err)
+	nonce, err := newNonce(aesgcm)
 	if err != nil {
 		return "", err
 	}
@@ -425,7 +425,7 @@ func sealToken(usrID string) (string, error) {
 		return "", err
 	}
 
-	nonce, err := newNonce(aesgcm, err)
+	nonce, err := newNonce(aesgcm)
 	if err != nil {
 		return "", err
 	}
@@ -445,9 +445,9 @@ func setCookie(w http.ResponseWriter, name string, value string) {
 	http.SetCookie(w, cookie)
 }
 
-func newNonce(aesgcm cipher.AEAD, err error) ([]byte, error) {
+func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 	nonce := make([]byte, aesgcm.NonceSize())
-	_, err = rand.Read(nonce)
+	_, err := rand.Read(nonce)
 	return nonce, err
 }
 
