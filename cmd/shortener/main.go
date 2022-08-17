@@ -13,7 +13,7 @@ func main() {
 	myShortener := shortener.NewShortener()
 	r := chi.NewRouter()
 	r.Route("/", router.DefaultRoute(myShortener))
-	server := &http.Server{Addr: "localhost:8080", Handler: r}
+	server := &http.Server{Addr: "127.0.0.1:8080", Handler: r}
 
 	// Server run context
 	/*	serverCtx, serverStopCtx := context.WithCancel(context.Background())
