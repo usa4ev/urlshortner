@@ -482,8 +482,8 @@ func (s *MyShortener) NewRouter() http.Handler {
 func (s *MyShortener) defaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 
-		r.With(gzipMW, s.authMW).Method("POST", "/", http.HandlerFunc(s.MakeShort))
-		r.With(gzipMW, s.authMW).Method("GET", "/{id}", http.HandlerFunc(s.MakeLong))
+		r.Method("POST", "/", http.HandlerFunc(s.MakeShort))
+		r.Method("GET", "/{id}", http.HandlerFunc(s.MakeLong))
 
 		//handlers := []router.HandlerDesc{
 		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
