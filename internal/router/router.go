@@ -46,10 +46,10 @@ func Route() func(r chi.Router) {
 		r.Get("/", Test)
 	}*/
 	return func(r chi.Router) {
-		r.Method("GET", "/", http.HandlerFunc(Test))
+		r.Method("GET", "/", http.HandlerFunc(Router{}.Test))
 	}
 }
 
-func Test(w http.ResponseWriter, r *http.Request) {
+func (g Router) Test(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusGone)
 }
