@@ -475,18 +475,21 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 func (s *MyShortener) DefaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 
-		handlers := []router.HandlerDesc{
-			{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-			{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-			{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-			{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-			{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-			{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		}
+		r.With(gzipMW, s.authMW).Method("POST", "/", http.HandlerFunc(s.MakeShort))
+		r.With(gzipMW, s.authMW).Method("GET", "/{id}", http.HandlerFunc(s.MakeLong))
 
-		for _, route := range handlers {
-			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-		}
+		//handlers := []router.HandlerDesc{
+		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//}
+		//
+		//for _, route := range handlers {
+		//	r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
+		//}
 	}
 }
 
