@@ -34,7 +34,7 @@ type (
 	MyShortener struct {
 		storage  *storage.Storage
 		Config   configrw.Config
-		handlers []router.HandlerDesc
+		Handlers []router.HandlerDesc
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -57,7 +57,7 @@ func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
-	s.handlers = []router.HandlerDesc{
+	s.Handlers = []router.HandlerDesc{
 		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
@@ -456,9 +456,9 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 }
 
 //func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-//	//return myShortener.handlers
+//	//return myShortener.Handlers
 //
-//	handlers := []router.HandlerDesc{
+//	Handlers := []router.HandlerDesc{
 //		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
@@ -467,7 +467,7 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 //		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
 //	}
 //
-//	for v := range handlers{
+//	for v := range Handlers{
 //
 //	}
 //}
@@ -485,7 +485,11 @@ func (s *MyShortener) defaultRoute() func(r chi.Router) {
 		r.Method("POST", "/", http.HandlerFunc(s.makeShort))
 		r.Method("GET", "/{id}", http.HandlerFunc(s.makeLong))
 
-		//handlers := []router.HandlerDesc{
+		for _, route := range s.Handlers {
+			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
+		}
+
+		//Handlers := []router.HandlerDesc{
 		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
@@ -494,7 +498,7 @@ func (s *MyShortener) defaultRoute() func(r chi.Router) {
 		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//}
 		//
-		//for _, route := range handlers {
+		//for _, route := range Handlers {
 		//	r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
 		//}
 	}
