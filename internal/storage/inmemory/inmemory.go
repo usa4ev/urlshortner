@@ -38,7 +38,7 @@ func New(c config) ims {
 
 		data, err := i.fileManager.ReadFile()
 		if err != nil {
-			panic(fmt.Errorf("failed to read from storage: %w", err.Error()))
+			panic(fmt.Errorf("failed to read from storage: %w", err))
 		}
 
 		i.data = data

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-chi/chi"
 	"io"
 	"log"
 	"net/http"
@@ -454,8 +455,39 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 	return nonce, err
 }
 
-func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-	return myShortener.handlers
+//func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
+//	//return myShortener.handlers
+//
+//	handlers := []router.HandlerDesc{
+//		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
+//	}
+//
+//	for v := range handlers{
+//
+//	}
+//}
+
+func (s *MyShortener) DefaultRoute() func(r chi.Router) {
+	return func(r chi.Router) {
+
+		handlers := []router.HandlerDesc{
+			{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+			{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+			{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+			{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+			{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+			{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		}
+
+		for _, route := range handlers {
+			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
+		}
+	}
 }
 
 func (myShortener *MyShortener) FlushStorage() {
