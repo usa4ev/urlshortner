@@ -58,10 +58,10 @@ func NewShortener() *MyShortener {
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
 	s.handlers = []router.HandlerDesc{
-		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
 	}
@@ -78,7 +78,7 @@ func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	userID := r.Context().Value(ctxKeyUserID).(string)
 	originalURL, err := readBody(r)
@@ -235,7 +235,7 @@ func (myShortener *MyShortener) makeURL(id string) string {
 	return myShortener.Config.BaseURL() + "/" + id
 }
 
-func (myShortener *MyShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
 	if err != nil {
@@ -459,10 +459,10 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 //	//return myShortener.handlers
 //
 //	handlers := []router.HandlerDesc{
-//		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-//		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
+//		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
 //		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
 //	}
@@ -482,14 +482,14 @@ func (s *MyShortener) NewRouter() http.Handler {
 func (s *MyShortener) defaultRoute() func(r chi.Router) {
 	return func(r chi.Router) {
 
-		r.Method("POST", "/", http.HandlerFunc(s.MakeShort))
-		r.Method("GET", "/{id}", http.HandlerFunc(s.MakeLong))
+		r.Method("POST", "/", http.HandlerFunc(s.makeShort))
+		r.Method("GET", "/{id}", http.HandlerFunc(s.makeLong))
 
 		//handlers := []router.HandlerDesc{
-		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.MakeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.MakeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 		//}
