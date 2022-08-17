@@ -91,15 +91,9 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 	err = myShortener.storeURL(id, string(originalURL), userID)
 	if err != nil {
 		if errors.Is(err, database.ErrConflict) {
-			errorText := err.Error()
-			_, err = io.WriteString(w, url)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, url, http.StatusConflict)
 
-				return
-			}
-
-			http.Error(w, errorText, http.StatusConflict)
+			return
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

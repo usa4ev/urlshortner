@@ -6,7 +6,7 @@ import (
 )
 
 type (
-	Router  chi.Router
+	Router  struct{ chi.Router }
 	handled interface {
 		Handlers() []HandlerDesc
 	}
