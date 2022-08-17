@@ -179,6 +179,10 @@ func (db database) LoadUrlsByUser(add func(id, url string), userid string) error
 		return err
 	}
 
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+
 	defer rows.Close()
 
 	for rows.Next() {
@@ -204,6 +208,10 @@ func (db database) LoadUser(session string) (string, error) {
 	if err != nil {
 		log.Printf("Error %s when lodaing session using id %v", err, session)
 		return "", err
+	}
+
+	if rows.Err() != nil {
+		return "", rows.Err()
 	}
 
 	defer rows.Close()

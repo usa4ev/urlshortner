@@ -24,8 +24,8 @@ func resetStorage(dsn string) error {
 
 func TestPingdb(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
-	defer resetStorage(config.DbDSN())
-	//db := New(config.DbDSN(), context.Background()))
+	defer resetStorage(config.DBDSN())
+	//db := New(config.DBDSN(), context.Background()))
 
 	type args struct {
 		dsn string
@@ -37,7 +37,7 @@ func TestPingdb(t *testing.T) {
 	}{
 		{
 			"with valid dsn",
-			args{config.DbDSN()},
+			args{config.DBDSN()},
 			false,
 		},
 		{
@@ -57,7 +57,7 @@ func TestPingdb(t *testing.T) {
 
 func Test_ims_StoreLoad(t *testing.T) {
 	config := configrw.NewConfig(configrw.IgnoreOsArgs())
-	resetStorage(config.DbDSN())
+	resetStorage(config.DBDSN())
 	testUserID := "testuser"
 	testSession := "testSession"
 
@@ -79,7 +79,7 @@ func Test_ims_StoreLoad(t *testing.T) {
 		},
 	}
 
-	storage := New(config.DbDSN(), context.Background())
+	storage := New(config.DBDSN(), context.Background())
 
 	t.Run("Store user info StoreSession()", func(t *testing.T) {
 		if err := storage.StoreSession(testUserID, testSession); err != nil {

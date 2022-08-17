@@ -83,7 +83,7 @@ func Test_MakeShort(t *testing.T) {
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
-	resetStorage(config.StoragePath(), config.DbDSN())
+	resetStorage(config.StoragePath(), config.DBDSN())
 
 	defer ts.Close()
 
@@ -140,11 +140,11 @@ func Test_MakeShortJSON(t *testing.T) {
 	cl := newTestClient(ts)
 
 	defer ts.Close()
-	resetStorage(config.StoragePath(), config.DbDSN())
+	resetStorage(config.StoragePath(), config.DBDSN())
 
 	for _, tt := range cases {
 		t.Run("POST JSON", func(t *testing.T) {
-			require.NoError(t, resetStorage(config.StoragePath(), config.DbDSN()), "failed to reset storage")
+			require.NoError(t, resetStorage(config.StoragePath(), config.DBDSN()), "failed to reset storage")
 
 			req := struct {
 				URL string `json:"url"`
@@ -178,7 +178,7 @@ func Test_MakeShortJSON(t *testing.T) {
 	}
 
 	t.Run("Wrong content type header", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DbDSN())
+		resetStorage(config.StoragePath(), config.DBDSN())
 		tt := cases[0]
 		req := struct {
 			URL string `json:"url"`
@@ -206,7 +206,7 @@ func Test_MakeShortJSON(t *testing.T) {
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
 	config := configrw.NewConfig()
-	resetStorage(config.StoragePath(), config.DbDSN())
+	resetStorage(config.StoragePath(), config.DBDSN())
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
@@ -230,7 +230,7 @@ func Test_MakeLong(t *testing.T) {
 	cl := newTestClient(ts)
 
 	t.Run("Get URL", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DbDSN())
+		resetStorage(config.StoragePath(), config.DBDSN())
 		for _, tt := range cases {
 			res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 			require.NoError(t, err, "url: %v", tt.url)
@@ -250,10 +250,10 @@ func Test_MakeLong(t *testing.T) {
 	})
 
 	t.Run("Get nonexistent url", func(t *testing.T) {
-		if err := resetStorage(config.StoragePath(), config.DbDSN()); err != nil {
+		if err := resetStorage(config.StoragePath(), config.DBDSN()); err != nil {
 			require.NoError(t, err, "failed to reset storage")
 		}
-		resetStorage(config.StoragePath(), config.DbDSN())
+		resetStorage(config.StoragePath(), config.DBDSN())
 		tt := cases[0]
 		res, err := cl.Get(tt.want + "i")
 		require.NoError(t, err, "url: %v", tt.url)
@@ -264,7 +264,7 @@ func Test_MakeLong(t *testing.T) {
 	tt := cases[0]
 
 	t.Run("Get gzipMW", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DbDSN())
+		resetStorage(config.StoragePath(), config.DBDSN())
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
 		require.Equal(t, http.StatusCreated, res.StatusCode)

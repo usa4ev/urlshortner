@@ -95,6 +95,6 @@ func (c Config) StoragePath() string {
 	return c.storagePath
 }
 
-func (c Config) DbDSN() string {
+func (c Config) DBDSN() string {
 	return c.dbDSN
 }
