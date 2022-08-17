@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/go-chi/chi"
+	"github.com/usa4ev/urlshortner/internal/shortener"
 	"net/http"
 )
 
@@ -41,12 +42,12 @@ func Middlewares(h ...func(http.Handler) http.Handler) chi.Middlewares {
 	return mws
 }
 
-func Route() func(r chi.Router) {
+func Route(myShortener *shortener.MyShortener) func(r chi.Router) {
 	/*return func(r chi.Router) {
 		r.Get("/", Test)
 	}*/
 	return func(r chi.Router) {
-		r.Method("GET", "/", http.HandlerFunc(Router{}.Test))
+		r.Method("GET", "/", http.HandlerFunc(myShortener.MakeLong))
 	}
 }
 

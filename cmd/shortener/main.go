@@ -11,7 +11,7 @@ func main() {
 	// The HTTP Server
 	myShortener := shortener.NewShortener()
 	r := chi.NewRouter()
-	r.Route("/", router.DefaultRoute(myShortener))
+	r.Route("/", router.Route(myShortener))
 	server := &http.Server{Addr: "127.0.0.1:8080", Handler: r}
 
 	// Server run context

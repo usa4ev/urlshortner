@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/configrw"
-	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"io"
@@ -30,9 +29,9 @@ const (
 
 type (
 	MyShortener struct {
-		storage  *storage.Storage
-		Config   configrw.Config
-		handlers []router.HandlerDesc
+		storage *storage.Storage
+		Config  configrw.Config
+		//handlers []router.HandlerDesc
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -55,14 +54,14 @@ func NewShortener() *MyShortener {
 	s := &MyShortener{}
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
-	s.handlers = []router.HandlerDesc{
-		{"POST", "/", http.HandlerFunc(s.makeShort), nil},
-		//{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), router.Middlewares(gzipMW, s.authMW)},
-		//{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), router.Middlewares(gzipMW, s.authMW)},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), nil},
-		//{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), router.Middlewares(gzipMW, s.authMW)},
-		//{"GET", "/ping", http.HandlerFunc(s.pingStorage), router.Middlewares(s.authMW)},
-	}
+	//s.handlers = []router.HandlerDesc{
+	//	{"POST", "/", http.HandlerFunc(s.MakeShort), nil},
+	//	//{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), router.Middlewares(gzipMW, s.authMW)},
+	//	//{"POST", "/api/shorten/batch", http.HandlerFunc(s.shortenBatchJSON), router.Middlewares(gzipMW, s.authMW)},
+	//	{"GET", "/{id}", http.HandlerFunc(s.MakeLong), nil},
+	//	//{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), router.Middlewares(gzipMW, s.authMW)},
+	//	//{"GET", "/ping", http.HandlerFunc(s.pingStorage), router.Middlewares(s.authMW)},
+	//}
 
 	return s
 }
@@ -77,7 +76,7 @@ func (myShortener MyShortener) pingStorage(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 }
 
-func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) MakeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	userID := r.Context().Value(ctxKeyUserID).(string)
 	originalURL, err := readBody(r)
@@ -232,7 +231,7 @@ func (myShortener *MyShortener) makeURL(id string) string {
 	return myShortener.Config.BaseURL() + "/" + id
 }
 
-func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
+func (myShortener *MyShortener) MakeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
 	if err != nil {
@@ -451,9 +450,9 @@ func newNonce(aesgcm cipher.AEAD, err error) ([]byte, error) {
 	return nonce, err
 }
 
-func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-	return myShortener.handlers
-}
+//func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
+//	return myShortener.handlers
+//}
 
 func (myShortener *MyShortener) FlushStorage() {
 	if err := myShortener.storage.Flush(); err != nil {
