@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"net/http"
@@ -10,10 +8,9 @@ import (
 
 func main() {
 	// The HTTP Server
-	fmt.Println("starting server..")
-	config := configrw.NewConfig()
+	//config := configrw.NewConfig()
 	myShortener := shortener.NewShortener()
-	server := &http.Server{Addr: config.SrvAddr(), Handler: router.NewRouter(myShortener)}
+	server := &http.Server{Addr: "localhost:8080", Handler: router.NewRouter(myShortener)}
 
 	// Server run context
 	/*	serverCtx, serverStopCtx := context.WithCancel(context.Background())
@@ -47,7 +44,7 @@ func main() {
 	// Run the server
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		fmt.Println(err.Error())
+		panic(err.Error())
 	}
 
 	// Wait for server context to be stopped
