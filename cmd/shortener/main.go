@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"github.com/usa4ev/urlshortner/internal/configrw"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,13 +15,14 @@ import (
 
 func main() {
 	// The HTTP Server
-	//config := configrw.NewConfig()
+	fmt.Println("starting server..")
+	config := configrw.NewConfig()
 	myShortener := shortener.NewShortener()
-	server := &http.Server{Addr: "localhost:8080", Handler: router.NewRouter(myShortener)}
+	server := &http.Server{Addr: config.SrvAddr(), Handler: router.NewRouter(myShortener)}
 
 	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
-
+	fmt.Println("addr: " + config.SrvAddr())
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -34,7 +36,7 @@ func main() {
 			<-shutdownCtx.Done()
 			if shutdownCtx.Err() == context.DeadlineExceeded {
 				defer cancelCtx()
-				log.Fatal("graceful shutdown timed out.. forcing exit.")
+				fmt.Println("graceful shutdown timed out.. forcing exit.")
 			}
 		}()
 
@@ -42,7 +44,7 @@ func main() {
 		myShortener.FlushStorage()
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err.Error())
 		}
 		serverStopCtx()
 	}()
@@ -50,7 +52,7 @@ func main() {
 	// Run the server
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		fmt.Println(err.Error())
 	}
 
 	// Wait for server context to be stopped
