@@ -19,7 +19,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/configrw"
-	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 )
@@ -64,12 +63,12 @@ func NewShortener() *MyShortener {
 	s.Config = configrw.NewConfig()
 	s.storage = storage.New(s.Config)
 	s.handlers = []handler{
-		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: router.Middlewares(gzipMW, s.authMW)},
-		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: router.Middlewares(s.authMW)},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
 	}
 
 	return s
