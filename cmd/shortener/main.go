@@ -9,7 +9,6 @@ import (
 
 func main() {
 	// The HTTP Server
-	//config := configrw.NewConfig()
 	myShortener := shortener.NewShortener()
 	r := chi.NewRouter()
 	r.Route("/", router.DefaultRoute(myShortener))
