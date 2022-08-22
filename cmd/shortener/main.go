@@ -15,11 +15,15 @@ import (
 func main() {
 	fmt.Println("srv start...")
 	defer fmt.Println("srv exit")
+
+	fmt.Printf("vars: %v", os.Environ())
+
+	os.Environ()
 	// The HTTP Server
 	myShortener := shortener.NewShortener()
 	//r := router.NewRouter(myShortener)
 	r := router.NewRouter(myShortener)
-	server := &http.Server{Addr: ":8080", Handler: r}
+	server := &http.Server{Addr: myShortener.Config.SrvAddr(), Handler: r}
 
 	fmt.Println("addr: " + myShortener.Config.SrvAddr())
 	// Listen for syscall signals for process to interrupt/quit
