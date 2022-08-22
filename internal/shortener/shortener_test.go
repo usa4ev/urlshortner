@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 
-	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,8 @@ func newTestClient(ts *httptest.Server) *http.Client {
 }
 
 func newTestSrv(srvAddr string) *httptest.Server {
-	s := shortener.NewShortener()
+	c := testConfig()
+	s := shortener.NewShortener(c, storage.New(c))
 	r := router.NewRouter(s)
 
 	l, err := net.Listen("tcp", srvAddr)
@@ -80,7 +82,7 @@ func getTests(baseURL string) tests {
 }
 
 func Test_MakeShort(t *testing.T) {
-	config := configrw.NewConfig()
+	config := testConfig()
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
@@ -104,38 +106,11 @@ func Test_MakeShort(t *testing.T) {
 			require.NoError(t, res.Body.Close())
 			assert.Equal(t, tt.want, string(body))
 		})
-
-		/*		t.Run("POST no-JSON gzip", func(t *testing.T) {
-				buf := bytes.NewBuffer(nil)
-				writer, err := gzip.NewWriterLevel(buf, gzip.BestSpeed)
-				require.NoError(t, err, "url: %v", tt.url)
-				_, err = writer.Write([]byte(tt.url))
-				require.NoError(t, err, "url: %v", tt.url)
-
-				r, err := http.NewRequest("POST", ts.URL, buf)
-				require.NoError(t, err, "url: %v", tt.url)
-				r.Header.Set("Content-Type", ctText)
-				r.Header.Set("Content-Encoding", "gzip")
-
-				res, err := cl.Do(r)
-				require.NoError(t, err, "url: %v", tt.url)
-
-				if res.StatusCode != http.StatusCreated {
-					t.Errorf("failed when filling test data\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
-
-					return
-				}
-
-				body, err := io.ReadAll(res.Body)
-				require.NoError(t, err)
-				require.NoError(t, res.Body.Close())
-				assert.Equal(t, tt.want, string(body))
-			})*/
 	}
 }
 
 func Test_MakeShortJSON(t *testing.T) {
-	config := configrw.NewConfig()
+	config := testConfig()
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
@@ -206,7 +181,7 @@ func Test_MakeShortJSON(t *testing.T) {
 }
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
-	config := configrw.NewConfig()
+	config := testConfig()
 	resetStorage(config.StoragePath(), config.DBDSN())
 	cases := getTests(config.BaseURL())
 
@@ -224,7 +199,7 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 }
 
 func Test_MakeLong(t *testing.T) {
-	config := configrw.NewConfig()
+	config := testConfig()
 	cases := getTests(config.BaseURL())
 
 	ts := newTestSrv(config.SrvAddr())
@@ -315,4 +290,14 @@ func resetStorage(path, dsn string) error {
 	fmt.Println("storage reset successful")
 
 	return nil
+}
+
+func testConfig() *config.Config {
+	return config.New(config.WithEnvVars(map[string]string{
+		"BASE_URL":          "http://localhost:8080",
+		"SERVER_ADDRESS":    "localhost:8080",
+		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
+		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
+	}),
+		config.IgnoreOsArgs())
 }

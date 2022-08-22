@@ -3,9 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
+	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,12 +21,13 @@ func main() {
 
 	os.Environ()
 	// The HTTP Server
-	myShortener := shortener.NewShortener()
-	//r := router.NewRouter(myShortener)
+	cfg := config.New()
+	strg := storage.New(cfg)
+	myShortener := shortener.NewShortener(cfg, strg)
 	r := router.NewRouter(myShortener)
-	server := &http.Server{Addr: myShortener.Config.SrvAddr(), Handler: r}
+	server := &http.Server{Addr: cfg.SrvAddr(), Handler: r}
 
-	fmt.Println("addr: " + myShortener.Config.SrvAddr())
+	fmt.Println("addr: " + cfg.SrvAddr())
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -34,7 +36,7 @@ func main() {
 		<-sig
 
 		// Trigger graceful shutdown
-		myShortener.FlushStorage()
+		strg.Flush()
 		server.Close()
 	}()
 
@@ -45,20 +47,5 @@ func main() {
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
-	}
-}
-
-func NewRouter(myShortener *shortener.MyShortener) http.Handler {
-	r := chi.NewRouter()
-	r.Route("/", defaultRoute(myShortener))
-
-	return r
-}
-
-func defaultRoute(shortener *shortener.MyShortener) func(r chi.Router) {
-	return func(r chi.Router) {
-		for _, route := range shortener.Handlers() {
-			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-		}
 	}
 }

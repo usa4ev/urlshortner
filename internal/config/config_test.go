@@ -1,4 +1,4 @@
-package configrw
+package config
 
 import (
 	"reflect"
@@ -13,7 +13,7 @@ func TestNewConfig(t *testing.T) {
 	}{
 		{
 			name: "flags only",
-			opts: []configOption{withEnvVars(map[string]string{}), withOsArgs([]string{"-a", "localhost:5555", "-b", "http://localhost:5555", "-f", "/storageTest.csv", "-d", "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb"})},
+			opts: []configOption{WithEnvVars(map[string]string{}), withOsArgs([]string{"-a", "localhost:5555", "-b", "http://localhost:5555", "-f", "/storageTest.csv", "-d", "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb"})},
 			want: Config{
 				baseURL:     "http://localhost:5555",
 				srvAddr:     "localhost:5555",
@@ -23,7 +23,7 @@ func TestNewConfig(t *testing.T) {
 		},
 		{
 			name: "envs only",
-			opts: []configOption{IgnoreOsArgs(), withOsArgs([]string{}), withEnvVars(map[string]string{
+			opts: []configOption{IgnoreOsArgs(), withOsArgs([]string{}), WithEnvVars(map[string]string{
 				"BASE_URL":          "http://localhost:5555",
 				"SERVER_ADDRESS":    "localhost:5555",
 				"FILE_STORAGE_PATH": "/storageTest.csv",
@@ -39,8 +39,8 @@ func TestNewConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewConfig(tt.opts...); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewConfig() = %v, want %v", got, tt.want)
+			if got := New(tt.opts...); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
 	}

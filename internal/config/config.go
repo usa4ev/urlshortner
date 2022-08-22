@@ -1,4 +1,4 @@
-package configrw
+package config
 
 import (
 	"flag"
@@ -27,7 +27,7 @@ func withOsArgs(osArgs []string) configOption {
 	}
 }
 
-func withEnvVars(envVars map[string]string) configOption {
+func WithEnvVars(envVars map[string]string) configOption {
 	return func(o *configOptions) {
 		o.envVars = envVars
 	}
@@ -39,7 +39,7 @@ func IgnoreOsArgs() configOption {
 	}
 }
 
-func NewConfig(opts ...configOption) Config {
+func New(opts ...configOption) *Config {
 	configOptions := &configOptions{
 		osArgs: os.Args[1:],
 		envVars: map[string]string{
@@ -53,7 +53,10 @@ func NewConfig(opts ...configOption) Config {
 	for _, o := range opts {
 		o(configOptions)
 	}
-	s := Config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
+
+	// default:
+	//s := config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
+	s := Config{}
 
 	if v := configOptions.envVars["BASE_URL"]; v != "" {
 		s.baseURL = v
@@ -80,7 +83,7 @@ func NewConfig(opts ...configOption) Config {
 		}
 	}
 
-	return s
+	return &s
 }
 
 func (c Config) BaseURL() string {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
 )
 
@@ -32,7 +32,7 @@ func resetStorage(path string) error {
 }
 
 func Test_ims_StoreLoadURL(t *testing.T) {
-	config := configrw.NewConfig(configrw.IgnoreOsArgs())
+	config := config.New(config.IgnoreOsArgs())
 	defer resetStorage(config.StoragePath())
 
 	testUserID := "testuser"
@@ -99,7 +99,7 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 }
 
 func Test_ims_StoreLoadUserInfo(t *testing.T) {
-	config := configrw.NewConfig(configrw.IgnoreOsArgs())
+	config := config.New(config.IgnoreOsArgs())
 	defer resetStorage(config.StoragePath())
 
 	type args struct {

@@ -2,11 +2,12 @@ package database
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/config"
 )
 
 func resetStorage(dsn string) error {
@@ -14,7 +15,7 @@ func resetStorage(dsn string) error {
 	db := New(dsn, context.Background())
 	defer db.Close()
 
-	rows, err := db.Query("DROP TABLE urls, users")
+	rows, err := db.Query("DROP TABLE IF EXISTS urls, users")
 
 	if rows.Err() != nil {
 		return rows.Err()
@@ -24,7 +25,7 @@ func resetStorage(dsn string) error {
 }
 
 func TestPingdb(t *testing.T) {
-	config := configrw.NewConfig(configrw.IgnoreOsArgs())
+	config := testConfig()
 	defer resetStorage(config.DBDSN())
 
 	type args struct {
@@ -57,7 +58,7 @@ func TestPingdb(t *testing.T) {
 }
 
 func Test_ims_StoreLoad(t *testing.T) {
-	config := configrw.NewConfig(configrw.IgnoreOsArgs())
+	config := testConfig()
 	resetStorage(config.DBDSN())
 	testUserID := "testuser"
 	testSession := "testSession"
@@ -134,4 +135,14 @@ func Test_ims_StoreLoad(t *testing.T) {
 		}
 		assert.Equal(t, c, len(p), "got wrong number of url by user %v", testUserID)
 	})
+}
+
+func testConfig() *config.Config {
+	return config.New(config.WithEnvVars(map[string]string{
+		"BASE_URL":          "http://localhost:8080",
+		"SERVER_ADDRESS":    "localhost:8080",
+		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
+		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
+	}),
+		config.IgnoreOsArgs())
 }

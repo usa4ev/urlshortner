@@ -51,7 +51,3 @@ func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pair
 
 	return p, err
 }
-
-func Ping(c config) error {
-	return database.Pingdb(c.DBDSN())
-}

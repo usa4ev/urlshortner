@@ -13,14 +13,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-chi/chi"
+	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/usa4ev/urlshortner/internal/configrw"
-	"github.com/usa4ev/urlshortner/internal/storage"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 )
 
@@ -33,7 +33,7 @@ const (
 type (
 	MyShortener struct {
 		storage  *storage.Storage
-		Config   configrw.Config
+		config   *config.Config
 		handlers []handler
 	}
 	urlreq struct {
@@ -59,22 +59,22 @@ type (
 	}
 )
 
-func NewShortener() *MyShortener {
-	s := &MyShortener{}
-	s.Config = configrw.NewConfig()
-	s.storage = storage.New(s.Config)
-	s.handlers = []handler{
-		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW, s.authMW}},
-		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW, s.authMW}},
-		{"GET", "/api/user/urls", http.HandlerFunc(s.makeLongByUser), chi.Middlewares{gzipMW, s.authMW}},
+func NewShortener(c *config.Config, s *storage.Storage) *MyShortener {
+	myShortener := &MyShortener{}
+	myShortener.config = c
+	myShortener.storage = s
+	myShortener.handlers = []handler{
+		{"POST", "/", http.HandlerFunc(myShortener.makeShort), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"GET", "/{id}", http.HandlerFunc(myShortener.makeLong), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"POST", "/api/shorten", http.HandlerFunc(myShortener.makeShortJSON), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"GET", "/api/user/urls", http.HandlerFunc(myShortener.makeLongByUser), chi.Middlewares{gzipMW, myShortener.authMW}},
 	}
 
-	return s
+	return myShortener
 }
 
 func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Request) {
-	err := storage.Ping(myShortener.Config)
+	err := database.Pingdb(myShortener.config.DBDSN())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -236,7 +236,7 @@ func (myShortener *MyShortener) storeURL(id, url, userID string) error {
 }
 
 func (myShortener *MyShortener) makeURL(id string) string {
-	return myShortener.Config.BaseURL() + "/" + id
+	return myShortener.config.BaseURL() + "/" + id
 }
 
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
@@ -349,11 +349,12 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 		errHandler := func(err error) {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		}
 		var token string
 		cookie, err := r.Cookie("userID")
-		if err != nil {
+		if err != nil && !errors.Is(err, http.ErrNoCookie) {
 			errHandler(err)
 		} else {
 			token, err = openToken(cookie.String())
@@ -460,8 +461,6 @@ func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
 }
 
 func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-	//return myShortener.handlers
-
 	return []router.HandlerDesc{
 		{Method: "POST", Path: "/", Handler: http.HandlerFunc(myShortener.makeShort), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
 		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(myShortener.makeShortJSON), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
@@ -469,43 +468,5 @@ func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
 		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(myShortener.makeLong), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
 		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(myShortener.makeLongByUser), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
 		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(myShortener.pingStorage), Middlewares: router.Middlewares(myShortener.authMW)},
-	}
-}
-
-//func (s *MyShortener) NewRouter() http.Handler {
-//	r := chi.NewRouter()
-//	r.Route("/", s.defaultRoute())
-//
-//	return r
-//}
-//
-//func (s *MyShortener) defaultRoute() func(r chi.Router) {
-//	return func(r chi.Router) {
-//
-//		//r.Method("POST", "/", http.HandlerFunc(s.makeShort))
-//		//r.Method("GET", "/{id}", http.HandlerFunc(s.makeLong))
-//
-//		for _, route := range s.handlers {
-//			r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-//		}
-//
-//		//handlers := []router.HandlerDesc{
-//		//	{Method: "POST", Path: "/", Handler: http.HandlerFunc(s.makeShort), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//	{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(s.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//	{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(s.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//	{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(s.makeLong), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//	{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(s.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//	{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(s.pingStorage), Middlewares: chi.Middlewares{gzipMW, s.authMW}},
-//		//}
-//		//
-//		//for _, route := range handlers {
-//		//	r.With(route.Middlewares...).Method(route.Method, route.Path, route.Handler)
-//		//}
-//	}
-//}
-
-func (myShortener *MyShortener) FlushStorage() {
-	if err := myShortener.storage.Flush(); err != nil {
-		log.Fatal(err)
 	}
 }
