@@ -13,6 +13,8 @@ import (
 )
 
 func main() {
+	fmt.Println("srv start...")
+	defer fmt.Println("srv exit")
 	// The HTTP Server
 	myShortener := shortener.NewShortener()
 	//r := router.NewRouter(myShortener)
