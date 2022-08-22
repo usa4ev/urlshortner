@@ -56,7 +56,7 @@ func New(opts ...configOption) *Config {
 
 	// default:
 	//s := config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
-	s := Config{}
+	s := Config{srvAddr: "http://localhost:8080", baseURL: "localhost:8080"}
 
 	if v := configOptions.envVars["BASE_URL"]; v != "" {
 		s.baseURL = v
