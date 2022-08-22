@@ -96,7 +96,14 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 	err = myShortener.storeURL(id, string(originalURL), userID)
 	if err != nil {
 		if errors.Is(err, database.ErrConflict) {
-			http.Error(w, url, http.StatusConflict)
+			_, err = io.WriteString(w, url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			w.WriteHeader(http.StatusConflict)
 
 			return
 		}
@@ -207,7 +214,7 @@ func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.
 	for _, v := range message {
 		id, url := myShortener.shortenURL(v.OriginalURL)
 		res = append(res, urlwidres{v.CorrelationID, url})
-		err = myShortener.storeURL(id, url, userID)
+		err = myShortener.storeURL(id, v.OriginalURL, userID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -352,19 +359,21 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 				return
 			}
 		}
-		var token string
+		var token, openToken string
+
 		cookie, err := r.Cookie("userID")
 		if err != nil && !errors.Is(err, http.ErrNoCookie) {
 			errHandler(err)
-		} else {
-			token, err = openToken(cookie.String())
+		} else if err == nil {
+			token = cookie.Value
+			openToken, err = unsealToken(token)
 			if err != nil {
-				log.Printf("failed to open passed user ID %v", token)
+				log.Printf("failed to open passed token %v", openToken)
 			}
 		}
 
 		s := myShortener.storage
-		val, err := s.LoadUser(token)
+		val, err := s.LoadUser(openToken)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to restore session: \n%v", err.Error()), http.StatusInternalServerError)
 		}
@@ -373,18 +382,33 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 			usrID = val
 		} else {
 			usrID = uuid.New().String()
-			newToken, err := sealToken(usrID)
+			openToken, err = generateRandom(16)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to create token for user ID: %v \n%v\n", usrID, err.Error()), http.StatusInternalServerError)
+			}
+
+			token, err = sealToken(openToken)
 			errHandler(err)
-			err = s.StoreSession(usrID, newToken)
+			err = s.StoreSession(usrID, openToken)
 			errHandler(err)
 		}
 
-		setCookie(w, "userID", usrID)
+		setCookie(w, "userID", token)
 		next.ServeHTTP(w, ctxWithSession(r, usrID))
 	})
 }
 
-func openToken(token string) (string, error) {
+func generateRandom(size int) (string, error) {
+	b := make([]byte, size)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(b), nil
+}
+
+func unsealToken(token string) (string, error) {
 	hexID, err := hex.DecodeString(token)
 	if err != nil {
 		return "", err
@@ -395,7 +419,7 @@ func openToken(token string) (string, error) {
 		return "", err
 	}
 
-	aesblock, err := aes.NewCipher(k)
+	aesblock, err := aes.NewCipher(k[:32])
 	if err != nil {
 		return "", err
 	}
@@ -405,17 +429,14 @@ func openToken(token string) (string, error) {
 		return "", err
 	}
 
-	nonce, err := newNonce(aesgcm)
-	if err != nil {
-		return "", err
-	}
+	nonce := k[len(k)-aesgcm.NonceSize():]
 
 	dst, err := aesgcm.Open(nil, nonce, hexID, nil)
 	if err != nil {
 		return "", err
 	}
 
-	return hex.EncodeToString(dst), err
+	return string(dst), err
 }
 
 func sealToken(usrID string) (string, error) {
@@ -424,7 +445,7 @@ func sealToken(usrID string) (string, error) {
 		return "", err
 	}
 
-	aesblock, err := aes.NewCipher(k)
+	aesblock, err := aes.NewCipher(k[:32])
 	if err != nil {
 		return "", err
 	}
@@ -434,10 +455,7 @@ func sealToken(usrID string) (string, error) {
 		return "", err
 	}
 
-	nonce, err := newNonce(aesgcm)
-	if err != nil {
-		return "", err
-	}
+	nonce := k[len(k)-aesgcm.NonceSize():]
 
 	dst := aesgcm.Seal(nil, nonce, []byte(usrID), nil)
 
@@ -452,12 +470,6 @@ func ctxWithSession(r *http.Request, usrID string) *http.Request {
 func setCookie(w http.ResponseWriter, name string, value string) {
 	cookie := &http.Cookie{Name: name, Value: value}
 	http.SetCookie(w, cookie)
-}
-
-func newNonce(aesgcm cipher.AEAD) ([]byte, error) {
-	nonce := make([]byte, aesgcm.NonceSize())
-	_, err := rand.Read(nonce)
-	return nonce, err
 }
 
 func (myShortener *MyShortener) Handlers() []router.HandlerDesc {

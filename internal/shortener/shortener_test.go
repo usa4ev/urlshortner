@@ -2,7 +2,6 @@ package shortener_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -15,11 +14,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/usa4ev/urlshortner/internal/shortener"
-	"github.com/usa4ev/urlshortner/internal/storage/database"
-
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/shortener"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -198,13 +195,63 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 	})
 }
 
+func Test_GetURLsByUser(t *testing.T) {
+	config := testConfig()
+	cases := getTests(config.BaseURL())
+	ts := newTestSrv(config.SrvAddr())
+	defer ts.Close()
+	cl := newTestClient(ts)
+	defer resetStorage(config.StoragePath(), config.DBDSN())
+
+	t.Run("Get URL's by user", func(t *testing.T) {
+		var userID string
+		for _, tt := range cases {
+			req, err := http.NewRequest("POST", ts.URL, bytes.NewBuffer([]byte(tt.url)))
+			req.Header = map[string][]string{
+				"Accept-Encoding": {"gzip, deflate"},
+				"Content-type":    {ctText},
+			}
+			req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
+			res, err := cl.Do(req)
+			if userID == "" {
+				userID = getUserID(res.Cookies())
+			}
+			require.NoError(t, err, "url: %v", tt.url)
+			require.NoError(t, res.Body.Close(), "url: %v", tt.url)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+		}
+
+		req, err := http.NewRequest("GET", ts.URL+"/api/user/urls", nil)
+		req.Header = map[string][]string{
+			"Accept-Encoding": {"gzip, deflate"},
+		}
+		req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
+		res, err := cl.Do(req)
+
+		if err != nil {
+			v, err := io.ReadAll(res.Body)
+			require.NoError(t, err, "failed to read error response")
+			require.NoError(t, fmt.Errorf(string(v)))
+		}
+
+		var message []storage.Pair
+
+		dec := json.NewDecoder(res.Body)
+		err = dec.Decode(&message)
+		require.NoError(t, res.Body.Close())
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "got wrong status code")
+		assert.Equal(t, len(cases), len(message), " got wrong number of urls")
+	})
+}
+
 func Test_MakeLong(t *testing.T) {
 	config := testConfig()
 	cases := getTests(config.BaseURL())
-
 	ts := newTestSrv(config.SrvAddr())
 	defer ts.Close()
-
 	cl := newTestClient(ts)
 
 	t.Run("Get URL", func(t *testing.T) {
@@ -255,6 +302,15 @@ func Test_MakeLong(t *testing.T) {
 	})
 }
 
+func getUserID(cc []*http.Cookie) string {
+	for _, cookie := range cc {
+		if cookie.Name == "userID" {
+			return cookie.Value
+		}
+	}
+	return ""
+}
+
 func resetStorage(path, dsn string) error {
 	// path is not set, quit wo error
 	if path == "" {
@@ -267,26 +323,6 @@ func resetStorage(path, dsn string) error {
 		}
 	}
 
-	db := database.New(dsn, context.Background())
-	defer db.Close()
-	rows, err := db.Query("TRUNCATE TABLE  urls")
-	if err != nil {
-		return err
-	}
-
-	if rows.Err() != nil {
-		return rows.Err()
-	}
-
-	rows, err = db.Query("TRUNCATE TABLE users")
-	if err != nil {
-		return err
-	}
-
-	if rows.Err() != nil {
-		return rows.Err()
-	}
-
 	fmt.Println("storage reset successful")
 
 	return nil
@@ -297,7 +333,6 @@ func testConfig() *config.Config {
 		"BASE_URL":          "http://localhost:8080",
 		"SERVER_ADDRESS":    "localhost:8080",
 		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
-		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
 	}),
 		config.IgnoreOsArgs())
 }

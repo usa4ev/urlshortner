@@ -45,7 +45,7 @@ func New(dsn string, ctx context.Context) database {
 
 	db.stmnts, err = db.prepareStatements()
 	if err != nil {
-		panic(err.Error())
+		(err.Error())
 	}
 
 	return db
