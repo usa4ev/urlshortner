@@ -85,7 +85,11 @@ func (s ims) StoreURL(id, url, userid string) error {
 }
 
 func (s ims) LoadUser(session string) (string, error) {
-	val, _ := s.sessions.Load(session)
+	val, ok := s.sessions.Load(session)
+	if !ok {
+		return "", nil
+	}
+
 	return val.(string), nil
 }
 

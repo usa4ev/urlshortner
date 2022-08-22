@@ -359,7 +359,7 @@ func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 		} else {
 			token, err = openToken(cookie.String())
 			if err != nil {
-				log.Printf("failed to open passed uder ID %v", token)
+				log.Printf("failed to open passed user ID %v", token)
 			}
 		}
 
