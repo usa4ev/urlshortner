@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/usa4ev/urlshortner/internal/storage"
 
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
@@ -81,9 +82,9 @@ func getTests(baseURL string) tests {
 func Test_MakeShort(t *testing.T) {
 	config := testConfig()
 	cases := getTests(config.BaseURL())
+	resetStorage(config.StoragePath(), config.DBDSN())
 	ts := newTestSrv(config.SrvAddr())
 	cl := newTestClient(ts)
-	resetStorage(config.StoragePath(), config.DBDSN())
 
 	defer ts.Close()
 
@@ -104,6 +105,26 @@ func Test_MakeShort(t *testing.T) {
 			assert.Equal(t, tt.want, string(body))
 		})
 	}
+
+	t.Run("POST no-JSON with conflict", func(t *testing.T) {
+		tt := cases[0]
+		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
+		require.NoError(t, err, "url: %v", tt.url)
+
+		res, err = cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
+		require.NoError(t, err, "url: %v", tt.url)
+
+		if res.StatusCode != http.StatusConflict {
+			t.Errorf("failed when there is conflict \nurl: %v\nstatus:%v", tt.url, res.StatusCode)
+
+			return
+		}
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.NoError(t, res.Body.Close())
+		assert.Equal(t, tt.want, string(body))
+	})
 }
 
 func Test_MakeShortJSON(t *testing.T) {
@@ -149,6 +170,47 @@ func Test_MakeShortJSON(t *testing.T) {
 			assert.Equal(t, tt.want, message.Result, "result mismatch\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
 		})
 	}
+
+	t.Run("POST JSON with conflict", func(t *testing.T) {
+		tt := cases[0]
+		require.NoError(t, resetStorage(config.StoragePath(), config.DBDSN()), "failed to reset storage")
+
+		req := struct {
+			URL string `json:"url"`
+		}{tt.url}
+		w := bytes.NewBuffer(nil)
+		enc := json.NewEncoder(w)
+		require.NoError(t, enc.Encode(req), "url: %v", tt.url)
+
+		res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, w)
+		require.NoError(t, err, "url: %v", tt.url)
+
+		w = bytes.NewBuffer(nil)
+		enc = json.NewEncoder(w)
+		require.NoError(t, enc.Encode(req), "url: %v", tt.url)
+
+		res, err = cl.Post(ts.URL+"/api/shorten", ctJSON, w)
+		require.NoError(t, err, "url: %v", tt.url)
+
+		if res.StatusCode != http.StatusConflict {
+			t.Errorf("failed when there is conflict\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
+
+			return
+		}
+
+		message := struct {
+			Result string `json:"result"`
+		}{}
+		dec := json.NewDecoder(res.Body)
+		err = dec.Decode(&message)
+		if err != nil {
+			message, _ := io.ReadAll(res.Body)
+			require.NoError(t, err, "failed to parse message:%v", string(message))
+		}
+
+		require.NoError(t, res.Body.Close())
+		assert.Equal(t, tt.want, message.Result, "result mismatch\nurl: %v\nstatus:%v", tt.url, res.StatusCode)
+	})
 
 	t.Run("Wrong content type header", func(t *testing.T) {
 		resetStorage(config.StoragePath(), config.DBDSN())
@@ -229,7 +291,6 @@ func Test_GetURLsByUser(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
 
 		res, err := cl.Do(req)
-
 		if err != nil {
 			v, err := io.ReadAll(res.Body)
 			require.NoError(t, err, "failed to read error response")
@@ -286,7 +347,10 @@ func Test_MakeLong(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, res.StatusCode, "got wrong status code\nurl%v:", tt.url)
 	})
 
-	tt := cases[0]
+	tt := struct {
+		url  string
+		want string
+	}{"gzip.org/test", config.BaseURL() + "/" + base64.RawURLEncoding.EncodeToString([]byte("gzip.org/test"))}
 
 	t.Run("Get gzipMW", func(t *testing.T) {
 		resetStorage(config.StoragePath(), config.DBDSN())

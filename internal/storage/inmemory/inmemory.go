@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/usa4ev/urlshortner/internal/storage/storageErrors"
+
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory/filestorage"
 )
 
@@ -73,8 +75,10 @@ func (s ims) LoadUrlsByUser(add func(id, url string), userid string) error {
 func (s ims) StoreURL(id, url, userid string) error {
 	var err error
 
-	if _, ok := s.data.LoadOrStore(id, storer{url, userid}); ok {
+	if _, ok := s.data.LoadOrStore(id, storer{url, userid}); !ok {
 		return nil
+	} else {
+		return storageErrors.ErrConflict
 	}
 
 	if s.fileManager != nil {

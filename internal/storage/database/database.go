@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"time"
+
+	"github.com/usa4ev/urlshortner/internal/storage/storageErrors"
 
 	_ "github.com/golang/mock/mockgen/model"
 	_ "github.com/jackc/pgx/stdlib"
@@ -22,8 +23,6 @@ type (
 		storeSession *sql.Stmt
 	}
 )
-
-var ErrConflict = errors.New("URL has already been shortened")
 
 func New(dsn string, ctx context.Context) database {
 	var (
@@ -123,7 +122,7 @@ func (db database) StoreURL(id, url, userid string) error {
 	}
 
 	if rows == 0 {
-		return ErrConflict
+		return storageErrors.ErrConflict
 	}
 
 	return tx.Commit()

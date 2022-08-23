@@ -3,15 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/router"
-	"github.com/usa4ev/urlshortner/internal/shortener"
-	"github.com/usa4ev/urlshortner/internal/storage"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
 func main() {

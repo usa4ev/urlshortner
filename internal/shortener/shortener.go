@@ -12,13 +12,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+
 	"github.com/go-chi/chi"
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
-	"io"
-	"log"
-	"net/http"
+	"github.com/usa4ev/urlshortner/internal/storage/storageErrors"
 
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
@@ -95,15 +97,15 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 	id, url := myShortener.shortenURL(string(originalURL))
 	err = myShortener.storeURL(id, string(originalURL), userID)
 	if err != nil {
-		if errors.Is(err, database.ErrConflict) {
+		if errors.Is(err, storageErrors.ErrConflict) {
+			w.WriteHeader(http.StatusConflict)
+
 			_, err = io.WriteString(w, url)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			w.WriteHeader(http.StatusConflict)
 
 			return
 		}
@@ -156,16 +158,16 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	res := urlres{url}
 	err = myShortener.storeURL(id, message.URL, userID)
 	if err != nil {
-		if errors.Is(err, database.ErrConflict) {
-			errorText := err.Error()
+		if errors.Is(err, storageErrors.ErrConflict) {
 
+			http.Error(w, "", http.StatusConflict)
+			w.Header().Set("Content-Type", ctJSON)
 			if err := enc.Encode(res); err != nil {
 				http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
 
 				return
 			}
 
-			http.Error(w, errorText, http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
