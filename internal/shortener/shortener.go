@@ -159,9 +159,8 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	err = myShortener.storeURL(id, message.URL, userID)
 	if err != nil {
 		if errors.Is(err, storageErrors.ErrConflict) {
-
-			http.Error(w, "", http.StatusConflict)
 			w.Header().Set("Content-Type", ctJSON)
+			w.WriteHeader(http.StatusConflict)
 			if err := enc.Encode(res); err != nil {
 				http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
 

@@ -198,6 +198,8 @@ func Test_MakeShortJSON(t *testing.T) {
 			return
 		}
 
+		require.Equal(t, ctJSON, res.Header.Get("Content-Type"), "got wrong content-type header")
+
 		message := struct {
 			Result string `json:"result"`
 		}{}
