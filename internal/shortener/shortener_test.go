@@ -110,6 +110,7 @@ func Test_MakeShort(t *testing.T) {
 		tt := cases[0]
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
+		require.NoError(t, res.Body.Close())
 
 		res, err = cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
@@ -184,6 +185,7 @@ func Test_MakeShortJSON(t *testing.T) {
 
 		res, err := cl.Post(ts.URL+"/api/shorten", ctJSON, w)
 		require.NoError(t, err, "url: %v", tt.url)
+		require.NoError(t, res.Body.Close())
 
 		w = bytes.NewBuffer(nil)
 		enc = json.NewEncoder(w)
@@ -271,6 +273,8 @@ func Test_GetURLsByUser(t *testing.T) {
 		var userID string
 		for _, tt := range cases {
 			req, err := http.NewRequest("POST", ts.URL, bytes.NewBuffer([]byte(tt.url)))
+			require.NoError(t, err, "failed when creating request")
+
 			req.Header = map[string][]string{
 				"Accept-Encoding": {"gzip, deflate"},
 				"Content-type":    {ctText},
@@ -287,6 +291,8 @@ func Test_GetURLsByUser(t *testing.T) {
 		}
 
 		req, err := http.NewRequest("GET", ts.URL+"/api/user/urls", nil)
+		require.NoError(t, err, "failed when creating request")
+
 		req.Header = map[string][]string{
 			"Accept-Encoding": {"gzip, deflate"},
 		}

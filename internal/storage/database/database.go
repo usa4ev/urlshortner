@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/usa4ev/urlshortner/internal/storage/storageErrors"
+	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 
 	_ "github.com/golang/mock/mockgen/model"
 	_ "github.com/jackc/pgx/stdlib"
@@ -44,7 +44,7 @@ func New(dsn string, ctx context.Context) database {
 
 	db.stmnts, err = db.prepareStatements()
 	if err != nil {
-		(err.Error())
+		panic(err.Error())
 	}
 
 	return db
@@ -122,7 +122,7 @@ func (db database) StoreURL(id, url, userid string) error {
 	}
 
 	if rows == 0 {
-		return storageErrors.ErrConflict
+		return storageerrors.ErrConflict
 	}
 
 	return tx.Commit()

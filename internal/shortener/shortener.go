@@ -20,7 +20,7 @@ import (
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
-	"github.com/usa4ev/urlshortner/internal/storage/storageErrors"
+	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 
 	"github.com/google/uuid"
 	"github.com/usa4ev/urlshortner/internal/storage/database"
@@ -97,7 +97,7 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 	id, url := myShortener.shortenURL(string(originalURL))
 	err = myShortener.storeURL(id, string(originalURL), userID)
 	if err != nil {
-		if errors.Is(err, storageErrors.ErrConflict) {
+		if errors.Is(err, storageerrors.ErrConflict) {
 			w.WriteHeader(http.StatusConflict)
 
 			_, err = io.WriteString(w, url)
@@ -158,7 +158,7 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	res := urlres{url}
 	err = myShortener.storeURL(id, message.URL, userID)
 	if err != nil {
-		if errors.Is(err, storageErrors.ErrConflict) {
+		if errors.Is(err, storageerrors.ErrConflict) {
 			w.Header().Set("Content-Type", ctJSON)
 			w.WriteHeader(http.StatusConflict)
 			if err := enc.Encode(res); err != nil {
