@@ -3,27 +3,39 @@ package shortener
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi"
-
-	"github.com/usa4ev/urlshortner/internal/configrw"
+	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
+	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
+
+	"github.com/google/uuid"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 )
 
 const (
-	ctJSON string = "application/json"
+	ctJSON       string     = "application/json"
+	key          string     = "9cc1ee455a3363ffc504f40006f70d0c8276648a5d3eb3f9524e94d1b7a83aef"
+	ctxKeyUserID contextKey = 0
 )
 
 type (
 	MyShortener struct {
 		storage  *storage.Storage
-		Config   configrw.Config
+		config   *config.Config
 		handlers []handler
 	}
 	urlreq struct {
@@ -32,7 +44,16 @@ type (
 	urlres struct {
 		Result string `json:"result"`
 	}
-	handler struct {
+	urlwid struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
+	}
+	urlwidres struct {
+		CorrelationID string `json:"correlation_id"`
+		ShortURL      string `json:"short_url"`
+	}
+	contextKey int
+	handler    struct {
 		Method      string
 		Path        string
 		Handler     http.Handler
@@ -40,33 +61,63 @@ type (
 	}
 )
 
-func NewShortener() *MyShortener {
-	s := &MyShortener{}
-	s.Config = configrw.NewConfig()
-	s.storage = storage.NewStorage(s.Config.StoragePath())
-	s.handlers = []handler{
-		{"POST", "/", http.HandlerFunc(s.makeShort), chi.Middlewares{gzipMW}},
-		{"GET", "/{id}", http.HandlerFunc(s.makeLong), chi.Middlewares{gzipMW}},
-		{"POST", "/api/shorten", http.HandlerFunc(s.makeShortJSON), chi.Middlewares{gzipMW}},
+func NewShortener(c *config.Config, s *storage.Storage) *MyShortener {
+	myShortener := &MyShortener{}
+	myShortener.config = c
+	myShortener.storage = s
+	myShortener.handlers = []handler{
+		{"POST", "/", http.HandlerFunc(myShortener.makeShort), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"GET", "/{id}", http.HandlerFunc(myShortener.makeLong), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"POST", "/api/shorten", http.HandlerFunc(myShortener.makeShortJSON), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"GET", "/api/user/urls", http.HandlerFunc(myShortener.makeLongByUser), chi.Middlewares{gzipMW, myShortener.authMW}},
 	}
 
-	return s
+	return myShortener
+}
+
+func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Request) {
+	err := database.Pingdb(myShortener.config.DBDSN())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	URL, err := readBody(r)
+	userID := r.Context().Value(ctxKeyUserID).(string)
+	originalURL, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	shortURL := myShortener.shortenURL(string(URL))
+	id, url := myShortener.shortenURL(string(originalURL))
+	err = myShortener.storeURL(id, string(originalURL), userID)
+	if err != nil {
+		if errors.Is(err, storageerrors.ErrConflict) {
+			w.WriteHeader(http.StatusConflict)
+
+			_, err = io.WriteString(w, url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
 
-	_, err = io.WriteString(w, shortURL)
+	_, err = io.WriteString(w, url)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -83,6 +134,11 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 
 	defer r.Body.Close()
 
+	var userID string
+	if rawUserID := r.Context().Value(ctxKeyUserID); rawUserID != nil {
+		userID = rawUserID.(string)
+	}
+
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -97,7 +153,75 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	res := urlres{myShortener.shortenURL(message.URL)}
+	enc := json.NewEncoder(w)
+	id, url := myShortener.shortenURL(message.URL)
+	res := urlres{url}
+	err = myShortener.storeURL(id, message.URL, userID)
+	if err != nil {
+		if errors.Is(err, storageerrors.ErrConflict) {
+			w.Header().Set("Content-Type", ctJSON)
+			w.WriteHeader(http.StatusConflict)
+			if err := enc.Encode(res); err != nil {
+				http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", ctJSON)
+	w.WriteHeader(http.StatusCreated)
+
+	if err := enc.Encode(res); err != nil {
+		http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.Request) {
+	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
+		http.Error(w, "unsupported content type", http.StatusBadRequest)
+
+		return
+	}
+
+	defer r.Body.Close()
+
+	var userID string
+	if rawUserID := r.Context().Value(ctxKeyUserID); rawUserID != nil {
+		userID = rawUserID.(string)
+	}
+
+	body, err := readBody(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	message := make([]urlwid, 0)
+	res := make([]urlwidres, 0)
+	dec := json.NewDecoder(bytes.NewBuffer(body))
+
+	if err := dec.Decode(&message); err != nil {
+		http.Error(w, "failed to decode message: "+err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	for _, v := range message {
+		id, url := myShortener.shortenURL(v.OriginalURL)
+		res = append(res, urlwidres{v.CorrelationID, url})
+		err = myShortener.storeURL(id, v.OriginalURL, userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", ctJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -110,25 +234,28 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (myShortener *MyShortener) shortenURL(url string) string {
-	key := base64.RawURLEncoding.EncodeToString([]byte(url))
-	storagePath := myShortener.Config.StoragePath()
-
-	if err := myShortener.storage.Append(key, url, storagePath); err != nil {
-		panic("failed to write new values to storage:" + err.Error())
-	}
-
-	return myShortener.makeURL(key)
+func (myShortener *MyShortener) shortenURL(url string) (string, string) {
+	id := base64.RawURLEncoding.EncodeToString([]byte(url))
+	return id, myShortener.makeURL(id)
 }
 
-func (myShortener *MyShortener) makeURL(key string) string {
-	return myShortener.Config.BaseURL() + "/" + key
+func (myShortener *MyShortener) storeURL(id, url, userID string) error {
+	return myShortener.storage.StoreURL(id, url, userID)
+}
+
+func (myShortener *MyShortener) makeURL(id string) string {
+	return myShortener.config.BaseURL() + "/" + id
 }
 
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
-	redirect, err := findURL(r.URL.Path[1:], myShortener)
+	id := r.URL.Path[1:]
+	redirect, err := myShortener.findURL(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+
+		return
+	} else if redirect == "" {
+		http.Error(w, fmt.Sprintf("id %v not found", id), http.StatusNotFound)
 
 		return
 	}
@@ -136,17 +263,33 @@ func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
-func findURL(key string, myShortener *MyShortener) (string, error) {
-	if url, ok := myShortener.storage.Load(key); ok {
-		return url, nil
+func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(ctxKeyUserID)
+	res, err := myShortener.storage.LoadByUser(myShortener.makeURL, userID.(string))
+	if err != nil {
+		http.Error(w, "failed to load data: "+err.Error(), http.StatusInternalServerError)
+
+		return
 	}
 
-	return "", errors.New("url not found")
+	if len(res) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", ctJSON)
+	enc := json.NewEncoder(w)
+
+	if err := enc.Encode(res); err != nil {
+		http.Error(w, "failed to encode message: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
 }
 
-/*func NewRouter() *chi.Mux {
-	return chi.NewRouter()
-}*/
+func (myShortener *MyShortener) findURL(key string) (string, error) {
+	return myShortener.storage.LoadURL(key)
+}
 
 type gzipWriter struct {
 	http.ResponseWriter
@@ -206,12 +349,137 @@ func gzipMW(next http.Handler) http.Handler {
 	})
 }
 
-func (myShortener *MyShortener) Handlers() []handler {
-	return myShortener.handlers
+func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		var usrID string
+
+		errHandler := func(err error) {
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		var token, openToken string
+
+		cookie, err := r.Cookie("userID")
+		if err != nil && !errors.Is(err, http.ErrNoCookie) {
+			errHandler(err)
+		} else if err == nil {
+			token = cookie.Value
+			openToken, err = unsealToken(token)
+			if err != nil {
+				log.Printf("failed to open passed token %v", openToken)
+			}
+		}
+
+		s := myShortener.storage
+		val, err := s.LoadUser(openToken)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to restore session: \n%v", err.Error()), http.StatusInternalServerError)
+		}
+
+		if val != "" {
+			usrID = val
+		} else {
+			usrID = uuid.New().String()
+			openToken, err = generateRandom(16)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to create token for user ID: %v \n%v\n", usrID, err.Error()), http.StatusInternalServerError)
+			}
+
+			token, err = sealToken(openToken)
+			errHandler(err)
+			err = s.StoreSession(usrID, openToken)
+			errHandler(err)
+		}
+
+		setCookie(w, "userID", token)
+		next.ServeHTTP(w, ctxWithSession(r, usrID))
+	})
 }
 
-func (myShortener *MyShortener) FlushStorage() {
-	if err := myShortener.storage.Flush(); err != nil {
-		log.Fatal(err)
+func generateRandom(size int) (string, error) {
+	b := make([]byte, size)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(b), nil
+}
+
+func unsealToken(token string) (string, error) {
+	hexID, err := hex.DecodeString(token)
+	if err != nil {
+		return "", err
+	}
+
+	k, err := hex.DecodeString(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesblock, err := aes.NewCipher(k[:32])
+	if err != nil {
+		return "", err
+	}
+
+	aesgcm, err := cipher.NewGCM(aesblock)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := k[len(k)-aesgcm.NonceSize():]
+
+	dst, err := aesgcm.Open(nil, nonce, hexID, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(dst), err
+}
+
+func sealToken(usrID string) (string, error) {
+	k, err := hex.DecodeString(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesblock, err := aes.NewCipher(k[:32])
+	if err != nil {
+		return "", err
+	}
+
+	aesgcm, err := cipher.NewGCM(aesblock)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := k[len(k)-aesgcm.NonceSize():]
+
+	dst := aesgcm.Seal(nil, nonce, []byte(usrID), nil)
+
+	return hex.EncodeToString(dst), err
+}
+
+func ctxWithSession(r *http.Request, usrID string) *http.Request {
+	ctx := context.WithValue(r.Context(), ctxKeyUserID, usrID)
+	return r.WithContext(ctx)
+}
+
+func setCookie(w http.ResponseWriter, name string, value string) {
+	cookie := &http.Cookie{Name: name, Value: value}
+	http.SetCookie(w, cookie)
+}
+
+func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
+	return []router.HandlerDesc{
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(myShortener.makeShort), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(myShortener.makeShortJSON), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(myShortener.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(myShortener.makeLong), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(myShortener.makeLongByUser), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(myShortener.pingStorage), Middlewares: router.Middlewares(myShortener.authMW)},
 	}
 }
