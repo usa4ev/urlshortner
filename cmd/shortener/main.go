@@ -28,11 +28,13 @@ func main() {
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
-		<-sig
+		call := <-sig
 
 		// Trigger graceful shutdown
 		strg.Flush()
 		server.Close()
+
+		fmt.Printf("graceful shutdown, got call: %v\n", call.String())
 	}()
 
 	// Run the server

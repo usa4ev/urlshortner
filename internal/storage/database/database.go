@@ -72,15 +72,11 @@ func New(dsn string, ctx context.Context) database {
 func (db database) initDB() error {
 	query := `CREATE TABLE IF NOT EXISTS users (
 				id VARCHAR(100) PRIMARY KEY,
-					session VARCHAR(256));`
+				token VARCHAR(256));`
 
-	rows, err := db.Query(query)
+	_, err := db.Exec(query)
 	if err != nil {
-		return err
-	}
-	if err = rows.Err(); err != nil {
-		log.Printf("Error %s when creating table users", err)
-		return err
+		panic(err)
 	}
 
 	query = `CREATE TABLE IF NOT EXISTS urls (
@@ -91,13 +87,9 @@ func (db database) initDB() error {
 					FOREIGN KEY (user_id)
 				REFERENCES users (id));`
 
-	rows, err = db.Query(query)
+	_, err = db.Exec(query)
 	if err != nil {
-		return err
-	}
-	if err = rows.Err(); err != nil {
-		log.Printf("Error %s when creating table urls", err)
-		return err
+		panic(err)
 	}
 
 	return err
@@ -126,7 +118,7 @@ func (db database) prepareStatements() (statements, error) {
 		return statements{}, err
 	}
 
-	storeSession, err := db.PrepareContext(db.ctx, "INSERT INTO users(id, session) VALUES ($1, $2)")
+	storeSession, err := db.PrepareContext(db.ctx, "INSERT INTO users(id, token) VALUES ($1, $2)")
 	if err != nil {
 		return statements{}, err
 	}
@@ -244,7 +236,7 @@ func (db database) LoadUrlsByUser(add func(id, url string), userid string) error
 
 func (db database) LoadUser(session string) (string, error) {
 	var url string
-	query := "SELECT id FROM users WHERE session = $1"
+	query := "SELECT id FROM users WHERE token = $1"
 
 	ctx, cancelfunc := context.WithTimeout(db.ctx, 5*time.Second)
 	defer cancelfunc()

@@ -115,11 +115,8 @@ func (s ims) Flush() error {
 
 		f := func(key, value any) bool {
 			err = writer.Write([]string{key.(string), value.(storer).url, value.(storer).userID, fmt.Sprintf("%t", value.(storer).deleted)})
-			if err != nil {
-				return false
-			}
 
-			return true
+			return err == nil
 		}
 
 		s.data.Range(f)

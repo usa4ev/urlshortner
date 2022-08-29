@@ -6,18 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
-
-	"github.com/usa4ev/urlshortner/internal/storage"
-
-	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/router"
-	"github.com/usa4ev/urlshortner/internal/shortener"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -344,10 +343,10 @@ func Test_DeleteBatch(t *testing.T) {
 				"Accept-Encoding": {"gzip, deflate"},
 				"Content-type":    {ctText},
 			}
-			// req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
 
 			res, err := cl.Do(req)
 			require.NoError(t, err, "failed when sending request %v: %v", req.Method, req.URL)
+			require.NoError(t, res.Body.Close())
 
 			if userID == "" {
 				userID = getUserID(res.Cookies())
@@ -386,8 +385,12 @@ func Test_DeleteBatch(t *testing.T) {
 
 		assert.Equal(t, http.StatusAccepted, res.StatusCode, "got wrong status code, response: %v", string(response))
 
-		err = s.FlushStorage()
-		require.NoError(t, err)
+		//err = s.FlushStorage()
+		//require.NoError(t, err)
+		timer := time.NewTimer(33 * time.Second)
+		<-timer.C
+
+		ok := false
 
 		for _, tt := range cases {
 			res, err := cl.Get(tt.want)
@@ -395,13 +398,17 @@ func Test_DeleteBatch(t *testing.T) {
 			response, err := io.ReadAll(res.Body)
 			require.NoError(t, res.Body.Close(), "url: %v", tt.url)
 			require.NoError(t, err)
+
 			if idToDelete == tt.id {
 				assert.Equal(t, http.StatusGone, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
+				ok = !ok
 			} else {
 				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
 				assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
 			}
 		}
+
+		assert.Equal(t, true, ok, "target id was not deleted")
 	})
 }
 
