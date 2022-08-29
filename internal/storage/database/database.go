@@ -1,9 +1,17 @@
 package database
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/gob"
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
@@ -17,10 +25,22 @@ type (
 		*sql.DB
 		ctx    context.Context
 		stmnts statements
+		buffer *asyncBuf
 	}
 	statements struct {
 		storeURL     *sql.Stmt
 		storeSession *sql.Stmt
+	}
+	deletedItems []Item
+	Item         struct {
+		ID      string
+		url     string
+		UserID  string
+		deleted bool
+	}
+	asyncBuf struct {
+		*bufio.Writer
+		mx sync.Mutex
 	}
 )
 
@@ -37,7 +57,6 @@ func New(dsn string, ctx context.Context) database {
 	}
 
 	err = db.initDB()
-
 	if err != nil {
 		panic(err.Error())
 	}
@@ -46,6 +65,8 @@ func New(dsn string, ctx context.Context) database {
 	if err != nil {
 		panic(err.Error())
 	}
+
+	db.initBuffer()
 
 	return db
 }
@@ -68,6 +89,7 @@ func (db database) initDB() error {
 					url VARCHAR(100) NOT NULL UNIQUE,
 					id VARCHAR(100) PRIMARY KEY UNIQUE,
 					user_id VARCHAR(38),
+					deleted BOOLEAN,
 					FOREIGN KEY (user_id)
 				REFERENCES users (id));`
 
@@ -83,8 +105,12 @@ func (db database) initDB() error {
 	return err
 }
 
+func (db *database) initBuffer() {
+	db.buffer = &asyncBuf{Writer: bufio.NewWriter(db)}
+}
+
 func (db database) prepareStatements() (statements, error) {
-	storeURL, err := db.PrepareContext(db.ctx, "INSERT INTO urls(id, url, user_id) VALUES ($1, $2, $3) ON CONFLICT (url) DO NOTHING")
+	storeURL, err := db.PrepareContext(db.ctx, "INSERT INTO urls(id, url, user_id, deleted) VALUES ($1, $2, $3, FALSE) ON CONFLICT (url) DO NOTHING")
 	if err != nil {
 		return statements{}, err
 	}
@@ -131,6 +157,7 @@ func (db database) StoreURL(id, url, userid string) error {
 func (db database) LoadURL(id string) (string, error) {
 	var (
 		url, query string
+		deleted    bool
 		rows       *sql.Rows
 		err        error
 	)
@@ -138,7 +165,7 @@ func (db database) LoadURL(id string) (string, error) {
 	ctx, cancelfunc := context.WithTimeout(db.ctx, 5*time.Second)
 	defer cancelfunc()
 
-	query = "SELECT url FROM urls WHERE id = $1"
+	query = "SELECT url, deleted FROM urls WHERE id = $1"
 	rows, err = db.QueryContext(ctx, query, id)
 	if err != nil {
 		log.Printf("Error %s when lodaing URL using id %v", err, id)
@@ -155,10 +182,14 @@ func (db database) LoadURL(id string) (string, error) {
 	if !rows.Next() {
 		return "", nil
 	}
-	err = rows.Scan(&url)
+	err = rows.Scan(&url, &deleted)
 	if err != nil {
 		log.Printf("Error %s when scanning query results; id %v", err, id)
 		return "", err
+	}
+
+	if deleted {
+		return "", storageerrors.ErrURLGone
 	}
 
 	return url, nil
@@ -259,6 +290,118 @@ func (db database) StoreSession(id, session string) error {
 	return tx.Commit()
 }
 
+func (db database) DeleteURLs(userID string, ids []string) error {
+	its := make(deletedItems, len(ids))
+
+	for i, id := range ids {
+		its[i] = Item{ID: id, UserID: userID}
+	}
+
+	b, err := itsToBytes(its)
+	if err != nil {
+		return fmt.Errorf("failed to represent struct slice as bytes: %w\n", err)
+	}
+
+	db.buffer.mx.Lock()
+	defer db.buffer.mx.Unlock()
+	_, err = db.buffer.Write(b)
+
+	if err != nil {
+		return fmt.Errorf("failed to represent write to buf: %w\n", err)
+	}
+
+	return nil
+}
+
+func itsToBytes(its deletedItems) ([]byte, error) {
+	w := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(w)
+
+	err := enc.Encode(its)
+	if err != nil {
+		return nil, fmt.Errorf("enconig failed: %w\n", err)
+	}
+
+	return w.Bytes(), nil
+}
+
+func (db database) Write(p []byte) (int, error) {
+	var err error
+
+	pr, pw := io.Pipe()
+	defer pr.Close()
+
+	errCh := make(chan error)
+
+	go func() {
+		defer pw.Close()
+
+		n, err := pw.Write(p)
+		if err != nil {
+			errCh <- fmt.Errorf("failed to pipe: %w\n", err)
+			return
+		}
+		//close(errCh)
+		fmt.Printf("written %v bytes\n", n)
+	}()
+
+	dec := gob.NewDecoder(pr)
+	res := make(deletedItems, 0)
+	var d deletedItems
+
+loop:
+	for {
+		select {
+		case err = <-errCh:
+			if err != nil {
+				return 0, err
+			}
+		default:
+			if err = dec.Decode(&d); errors.Is(err, io.EOF) {
+				break loop
+			} else if err != nil {
+				return 0, fmt.Errorf("failed to decode struct %w\n", err)
+			}
+			fmt.Printf("decoded struct %v\n", d)
+			res = append(res, d...)
+		}
+	}
+
+	if err != nil && !errors.Is(err, io.EOF) {
+		return 0, fmt.Errorf("deconig failed: %w\n", err)
+	}
+
+	fmt.Printf("deconig successful")
+
+	valueStrings := make([]string, 0, len(res))
+	valueArgs := make([]interface{}, 0, len(res)*2)
+
+	c := 1
+	for _, v := range res {
+		valueStrings = append(valueStrings, fmt.Sprintf("($%v, $%v, TRUE)", c, c+1))
+		valueArgs = append(valueArgs, v.ID, v.UserID)
+		c += 2
+	}
+
+	stmt := fmt.Sprintf("UPDATE urls SET deleted = tmp.deleted from (values %s) as tmp (id, user_id, deleted) "+
+		"WHERE urls.user_id = tmp.user_id AND urls.id = tmp.id AND urls.deleted = false",
+		strings.Join(valueStrings, ","))
+
+	rows, err := db.Exec(stmt, valueArgs...)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to update buffered urls in database: %w\n", err)
+	}
+
+	_, err = rows.RowsAffected()
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to get affected rows: %w\n", err)
+	}
+
+	return len(p), nil
+}
+
 func Pingdb(dsn string) error {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -289,5 +432,5 @@ func Pingdb(dsn string) error {
 }
 
 func (db database) Flush() error {
-	return nil
+	return db.buffer.Flush()
 }

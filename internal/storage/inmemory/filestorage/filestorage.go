@@ -1,42 +1,37 @@
 package filestorage
 
 import (
-	"bufio"
 	"encoding/csv"
 	"os"
+	"strconv"
 	"sync"
 )
 
 type (
-	fileStorage struct {
+	FileStorage struct {
 		filePath string
-		writer   *bufio.Writer
-		mx       *sync.Mutex
 	}
 	storer struct {
-		url    string
-		userID string
+		url     string
+		userID  string
+		deleted bool
+	}
+	Writer interface {
+		Write([]string) error
 	}
 )
 
-func New(p string) *fileStorage {
+func New(p string) *FileStorage {
 	if p == "" {
 		return nil
 	}
 
-	file, err := openFileW(p)
-	if err != nil {
-		panic("failed to open storage file:" + err.Error())
-	}
-
-	return &fileStorage{
+	return &FileStorage{
 		filePath: p,
-		writer:   bufio.NewWriter(file),
-		mx:       &sync.Mutex{},
 	}
 }
 
-func (f fileStorage) ReadFile() (*sync.Map, error) {
+func (f FileStorage) ReadFile() (*sync.Map, error) {
 	var s sync.Map
 
 	file, err := os.OpenFile(f.filePath, os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o777)
@@ -54,28 +49,23 @@ func (f fileStorage) ReadFile() (*sync.Map, error) {
 	}
 
 	for _, v := range strings {
-		s.Store(v[0], storer{v[1], v[2]})
+		deleted, err := strconv.ParseBool(v[3])
+		if err != nil {
+			return &s, err
+		}
+
+		s.Store(v[0], storer{v[1], v[2], deleted})
 	}
 
 	return &s, nil
 }
 
-func (f fileStorage) Store(ss []string) error {
-	writer := csv.NewWriter(f.writer)
-
-	f.mx.Lock()
-	err := writer.Write(ss)
-	f.mx.Unlock()
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+func NewWriter(file *os.File) Writer {
+	return csv.NewWriter(file)
 }
 
-func (f *fileStorage) Flush() error {
-	return f.writer.Flush()
+func (f FileStorage) OpnFileW() (*os.File, error) {
+	return openFileW(f.filePath)
 }
 
 func openFileW(storagePath string) (*os.File, error) {

@@ -33,6 +33,7 @@ type (
 	test struct {
 		url  string
 		want string
+		id   string
 	}
 	tests []test
 )
@@ -47,9 +48,7 @@ func newTestClient(ts *httptest.Server) *http.Client {
 	return cl
 }
 
-func newTestSrv(srvAddr string) *httptest.Server {
-	c := testConfig()
-	s := shortener.NewShortener(c, storage.New(c))
+func newTestSrv(srvAddr string, s *shortener.MyShortener) *httptest.Server {
 	r := router.NewRouter(s)
 
 	l, err := net.Listen("tcp", srvAddr)
@@ -72,8 +71,10 @@ func getTests(baseURL string) tests {
 	}
 	res := tests{}
 
+	var id string
 	for _, v := range urls {
-		res = append(res, test{v, baseURL + "/" + base64.RawURLEncoding.EncodeToString([]byte(v))})
+		id = base64.RawURLEncoding.EncodeToString([]byte(v))
+		res = append(res, test{v, baseURL + "/" + id, id})
 	}
 
 	return res
@@ -81,9 +82,10 @@ func getTests(baseURL string) tests {
 
 func Test_MakeShort(t *testing.T) {
 	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
 	resetStorage(config.StoragePath(), config.DBDSN())
-	ts := newTestSrv(config.SrvAddr())
+	ts := newTestSrv(config.SrvAddr(), s)
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -130,8 +132,9 @@ func Test_MakeShort(t *testing.T) {
 
 func Test_MakeShortJSON(t *testing.T) {
 	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr())
+	ts := newTestSrv(config.SrvAddr(), s)
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -245,10 +248,11 @@ func Test_MakeShortJSON(t *testing.T) {
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
 	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
 	resetStorage(config.StoragePath(), config.DBDSN())
 	cases := getTests(config.BaseURL())
 
-	ts := newTestSrv(config.SrvAddr())
+	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
 
 	t.Run("Empty storage", func(t *testing.T) {
@@ -263,8 +267,9 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 
 func Test_GetURLsByUser(t *testing.T) {
 	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr())
+	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
 	cl := newTestClient(ts)
 	defer resetStorage(config.StoragePath(), config.DBDSN())
@@ -316,10 +321,89 @@ func Test_GetURLsByUser(t *testing.T) {
 	})
 }
 
+func Test_DeleteBatch(t *testing.T) {
+	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
+	cases := getTests(config.BaseURL())
+	ts := newTestSrv(config.SrvAddr(), s)
+	defer ts.Close()
+	cl := newTestClient(ts)
+	defer resetStorage(config.StoragePath(), config.DBDSN())
+
+	t.Run("Delete batch", func(t *testing.T) {
+		var userID, idToDelete string
+		for _, tt := range cases {
+			req, err := http.NewRequest("POST", ts.URL, bytes.NewBuffer([]byte(tt.url)))
+			require.NoError(t, err, "failed when creating request")
+
+			req.Header = map[string][]string{
+				"Accept-Encoding": {"gzip, deflate"},
+				"Content-type":    {ctText},
+			}
+			//req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
+			res, err := cl.Do(req)
+			if userID == "" {
+				userID = getUserID(res.Cookies())
+				idToDelete = tt.id
+			}
+		}
+
+		batch := make([]string, len(cases))
+		for i, tt := range cases {
+			batch[i] = tt.id
+		}
+
+		w := bytes.NewBuffer(nil)
+		enc := json.NewEncoder(w)
+		require.NoError(t, enc.Encode(batch), "failed to encode message")
+
+		req, err := http.NewRequest("DELETE", ts.URL+"/api/user/urls", w)
+		require.NoError(t, err, "failed when creating request")
+
+		req.Header = map[string][]string{
+			"Accept-Encoding": {"gzip, deflate"},
+			"Content-Type":    {ctJSON},
+		}
+		req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
+		res, err := cl.Do(req)
+		if err != nil {
+			v, err := io.ReadAll(res.Body)
+			require.NoError(t, err, "failed to read error response")
+			require.NoError(t, fmt.Errorf(string(v)))
+		}
+
+		response, err := io.ReadAll(res.Body)
+		require.NoError(t, res.Body.Close())
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, res.StatusCode, "got wrong status code, respone: %v", string(response))
+
+		s.FlushStorage()
+
+		for _, tt := range cases {
+			res, err := cl.Get(tt.want)
+			require.NoError(t, err, "url: %v", tt.url)
+			response, err := io.ReadAll(res.Body)
+			require.NoError(t, res.Body.Close(), "url: %v", tt.url)
+			require.NoError(t, err)
+			if idToDelete == tt.id {
+				assert.Equal(t, http.StatusGone, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
+			} else {
+				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
+				assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
+			}
+
+		}
+	})
+}
+
 func Test_MakeLong(t *testing.T) {
 	config := testConfig()
+	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr())
+	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
 	cl := newTestClient(ts)
 
@@ -408,3 +492,13 @@ func testConfig() *config.Config {
 	}),
 		config.IgnoreOsArgs())
 }
+
+//func testConfigDB() *config.Config {
+//	return config.New(config.WithEnvVars(map[string]string{
+//		"BASE_URL":          "http://localhost:8080",
+//		"SERVER_ADDRESS":    "localhost:8080",
+//		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
+//		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
+//	}),
+//		config.IgnoreOsArgs())
+//}

@@ -30,6 +30,7 @@ type (
 		LoadUser(session string) (string, error)
 		StoreSession(id, session string) error
 		Flush() error
+		DeleteURLs(userID string, ids []string) error
 	}
 )
 

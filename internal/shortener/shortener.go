@@ -36,7 +36,7 @@ type (
 	MyShortener struct {
 		storage  *storage.Storage
 		config   *config.Config
-		handlers []handler
+		handlers []router.HandlerDesc
 	}
 	urlreq struct {
 		URL string `json:"url"`
@@ -53,23 +53,18 @@ type (
 		ShortURL      string `json:"short_url"`
 	}
 	contextKey int
-	handler    struct {
-		Method      string
-		Path        string
-		Handler     http.Handler
-		Middlewares chi.Middlewares
-	}
 )
 
 func NewShortener(c *config.Config, s *storage.Storage) *MyShortener {
 	myShortener := &MyShortener{}
 	myShortener.config = c
 	myShortener.storage = s
-	myShortener.handlers = []handler{
+	myShortener.handlers = []router.HandlerDesc{
 		{"POST", "/", http.HandlerFunc(myShortener.makeShort), chi.Middlewares{gzipMW, myShortener.authMW}},
 		{"GET", "/{id}", http.HandlerFunc(myShortener.makeLong), chi.Middlewares{gzipMW, myShortener.authMW}},
 		{"POST", "/api/shorten", http.HandlerFunc(myShortener.makeShortJSON), chi.Middlewares{gzipMW, myShortener.authMW}},
 		{"GET", "/api/user/urls", http.HandlerFunc(myShortener.makeLongByUser), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{"DELETE", "/api/user/urls", http.HandlerFunc(myShortener.deleteBatch), chi.Middlewares{gzipMW, myShortener.authMW}},
 	}
 
 	return myShortener
@@ -250,7 +245,11 @@ func (myShortener *MyShortener) makeURL(id string) string {
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
-	if err != nil {
+	if errors.Is(err, storageerrors.ErrURLGone) {
+		http.Error(w, err.Error(), http.StatusGone)
+
+		return
+	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 
 		return
@@ -287,8 +286,49 @@ func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Re
 	}
 }
 
+func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Request) {
+	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
+		http.Error(w, "unsupported content type", http.StatusBadRequest)
+
+		return
+	}
+
+	defer r.Body.Close()
+
+	var userID string
+	if rawUserID := r.Context().Value(ctxKeyUserID); rawUserID != nil {
+		userID = rawUserID.(string)
+	}
+
+	body, err := readBody(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	message := make([]string, 0)
+	dec := json.NewDecoder(bytes.NewBuffer(body))
+
+	if err := dec.Decode(&message); err != nil {
+		http.Error(w, "failed to decode message: "+err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = myShortener.storage.DeleteURLs(userID, message)
+
+	if err != nil {
+		http.Error(w, "deletion failed: "+err.Error(), http.StatusBadRequest)
+
+		return
+	}
+}
+
 func (myShortener *MyShortener) findURL(key string) (string, error) {
 	return myShortener.storage.LoadURL(key)
+}
+
+func (myShortener *MyShortener) FlushStorage() error {
+	return myShortener.storage.Flush()
 }
 
 type gzipWriter struct {
@@ -474,12 +514,5 @@ func setCookie(w http.ResponseWriter, name string, value string) {
 }
 
 func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-	return []router.HandlerDesc{
-		{Method: "POST", Path: "/", Handler: http.HandlerFunc(myShortener.makeShort), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
-		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(myShortener.makeShortJSON), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
-		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(myShortener.shortenBatchJSON), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
-		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(myShortener.makeLong), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
-		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(myShortener.makeLongByUser), Middlewares: router.Middlewares(gzipMW, myShortener.authMW)},
-		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(myShortener.pingStorage), Middlewares: router.Middlewares(myShortener.authMW)},
-	}
+	return myShortener.handlers
 }
