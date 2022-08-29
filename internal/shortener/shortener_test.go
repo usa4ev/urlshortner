@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
@@ -16,10 +18,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -323,7 +321,7 @@ func Test_GetURLsByUser(t *testing.T) {
 }
 
 func Test_DeleteBatch(t *testing.T) {
-	config := testConfig()
+	config := testConfigDB()
 	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr(), s)
@@ -334,7 +332,7 @@ func Test_DeleteBatch(t *testing.T) {
 	defer resetStorage(config.StoragePath(), config.DBDSN())
 
 	t.Run("Delete batch", func(t *testing.T) {
-		var userID, idToDelete string
+		var userID string
 		for _, tt := range cases {
 			req, err := http.NewRequest("POST", ts.URL, bytes.NewBuffer([]byte(tt.url)))
 			require.NoError(t, err, "failed when creating request")
@@ -344,53 +342,58 @@ func Test_DeleteBatch(t *testing.T) {
 				"Content-type":    {ctText},
 			}
 
+			req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
 			res, err := cl.Do(req)
 			require.NoError(t, err, "failed when sending request %v: %v", req.Method, req.URL)
 			require.NoError(t, res.Body.Close())
 
 			if userID == "" {
 				userID = getUserID(res.Cookies())
-				idToDelete = tt.id
+				//idToDelete = tt.id
 			}
 		}
 
-		batch := make([]string, len(cases))
-		for i, tt := range cases {
-			batch[i] = tt.id
+		for _, tt := range cases {
+			batch := make([]string, 1)
+			batch[0] = tt.id
+
+			w := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(w)
+			require.NoError(t, enc.Encode(batch), "failed to encode message")
+
+			req, err := http.NewRequest("DELETE", ts.URL+"/api/user/urls", w)
+			require.NoError(t, err, "failed when creating request")
+
+			req.Header = map[string][]string{
+				"Accept-Encoding": {"gzip, deflate"},
+				"Content-Type":    {ctJSON},
+			}
+			req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+
+			res, err := cl.Do(req)
+			if err != nil {
+				v, err := io.ReadAll(res.Body)
+				require.NoError(t, err, "failed to read error response")
+				require.NoError(t, fmt.Errorf(string(v)))
+			}
+
+			response, err := io.ReadAll(res.Body)
+			require.NoError(t, res.Body.Close())
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusAccepted, res.StatusCode, "got wrong status code, response: %v", string(response))
+
+			err = s.FlushStorage()
+			require.NoError(t, err)
 		}
 
-		w := bytes.NewBuffer(nil)
-		enc := json.NewEncoder(w)
-		require.NoError(t, enc.Encode(batch), "failed to encode message")
-
-		req, err := http.NewRequest("DELETE", ts.URL+"/api/user/urls", w)
-		require.NoError(t, err, "failed when creating request")
-
-		req.Header = map[string][]string{
-			"Accept-Encoding": {"gzip, deflate"},
-			"Content-Type":    {ctJSON},
-		}
-		req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
-
-		res, err := cl.Do(req)
-		if err != nil {
-			v, err := io.ReadAll(res.Body)
-			require.NoError(t, err, "failed to read error response")
-			require.NoError(t, fmt.Errorf(string(v)))
-		}
-
-		response, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
+		err := s.FlushStorage()
 		require.NoError(t, err)
+		//timer := time.NewTimer(33 * time.Second)
+		//<-timer.C
 
-		assert.Equal(t, http.StatusAccepted, res.StatusCode, "got wrong status code, response: %v", string(response))
-
-		//err = s.FlushStorage()
-		//require.NoError(t, err)
-		timer := time.NewTimer(33 * time.Second)
-		<-timer.C
-
-		ok := false
+		//ok := false
 
 		for _, tt := range cases {
 			res, err := cl.Get(tt.want)
@@ -399,16 +402,16 @@ func Test_DeleteBatch(t *testing.T) {
 			require.NoError(t, res.Body.Close(), "url: %v", tt.url)
 			require.NoError(t, err)
 
-			if idToDelete == tt.id {
-				assert.Equal(t, http.StatusGone, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
-				ok = !ok
-			} else {
-				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
-				assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
-			}
+			//if idToDelete == tt.id {
+			assert.Equal(t, http.StatusGone, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
+			//ok = !ok
+			//} else {
+			//	assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
+			//	assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
+			//}
 		}
 
-		assert.Equal(t, true, ok, "target id was not deleted")
+		//assert.Equal(t, true, ok, "target id was not deleted")
 	})
 }
 
@@ -505,12 +508,12 @@ func testConfig() *config.Config {
 		config.IgnoreOsArgs())
 }
 
-//func testConfigDB() *config.Config {
-//	return config.New(config.WithEnvVars(map[string]string{
-//		"BASE_URL":          "http://localhost:8080",
-//		"SERVER_ADDRESS":    "localhost:8080",
-//		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
-//		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
-//	}),
-//		config.IgnoreOsArgs())
-//}
+func testConfigDB() *config.Config {
+	return config.New(config.WithEnvVars(map[string]string{
+		"BASE_URL":          "http://localhost:8080",
+		"SERVER_ADDRESS":    "localhost:8080",
+		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
+		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
+	}),
+		config.IgnoreOsArgs())
+}

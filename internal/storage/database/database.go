@@ -37,8 +37,10 @@ type (
 	}
 	asyncBuf struct {
 		*bufio.Writer
-		mx sync.Mutex
-		t  *time.Ticker
+		enc *gob.Encoder
+		mx  sync.Mutex
+		ew  *bytes.Buffer
+		t   *time.Ticker
 	}
 )
 
@@ -106,9 +108,13 @@ func (db *database) initBuffer() {
 		}
 	}()
 
+	w := bytes.NewBuffer(nil)
+
 	db.buffer = &asyncBuf{
 		Writer: buf,
 		t:      t,
+		ew:     w,
+		enc:    gob.NewEncoder(w),
 	}
 }
 
@@ -298,7 +304,7 @@ func (db database) DeleteURLs(userID string, ids []string) error {
 		its[i] = Item{ID: id, UserID: userID}
 	}
 
-	b, err := itsToBytes(its)
+	b, err := db.buffer.itsToBytes(its)
 	if err != nil {
 		return fmt.Errorf("failed to represent struct slice as bytes: %w", err)
 	}
@@ -314,19 +320,20 @@ func (db database) DeleteURLs(userID string, ids []string) error {
 	return nil
 }
 
-func itsToBytes(its deletedItems) ([]byte, error) {
-	w := bytes.NewBuffer(nil)
-	enc := gob.NewEncoder(w)
-
-	if err := enc.Encode(its); err != nil {
+func (ab *asyncBuf) itsToBytes(its deletedItems) ([]byte, error) {
+	if err := ab.enc.Encode(its); err != nil {
 		return nil, fmt.Errorf("enconig failed: %w", err)
 	}
 
-	return w.Bytes(), nil
+	defer ab.ew.Reset()
+
+	return ab.ew.Bytes(), nil
 }
 
 func (db database) Write(p []byte) (int, error) {
 	var err error
+
+	defer db.buffer.ew.Reset()
 
 	pr, pw := io.Pipe()
 	defer pr.Close()
@@ -427,5 +434,11 @@ func Pingdb(dsn string) error {
 }
 
 func (db database) Flush() error {
+	db.buffer.mx.Lock()
+	defer db.buffer.mx.Unlock()
+
+	// reset encoder to rewrite type info with next encoding
+	db.buffer.enc = gob.NewEncoder(db.buffer.ew)
+
 	return db.buffer.Flush()
 }
