@@ -271,7 +271,9 @@ func Test_GetURLsByUser(t *testing.T) {
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
+
 	cl := newTestClient(ts)
+
 	defer resetStorage(config.StoragePath(), config.DBDSN())
 
 	t.Run("Get URL's by user", func(t *testing.T) {
@@ -327,7 +329,9 @@ func Test_DeleteBatch(t *testing.T) {
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
+
 	cl := newTestClient(ts)
+
 	defer resetStorage(config.StoragePath(), config.DBDSN())
 
 	t.Run("Delete batch", func(t *testing.T) {
@@ -340,9 +344,11 @@ func Test_DeleteBatch(t *testing.T) {
 				"Accept-Encoding": {"gzip, deflate"},
 				"Content-type":    {ctText},
 			}
-			//req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
+			// req.AddCookie(&http.Cookie{Name: "userID", Value: userID})
 
 			res, err := cl.Do(req)
+			require.NoError(t, err, "failed when sending request %v: %v", req.Method, req.URL)
+
 			if userID == "" {
 				userID = getUserID(res.Cookies())
 				idToDelete = tt.id
@@ -378,9 +384,10 @@ func Test_DeleteBatch(t *testing.T) {
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, err)
 
-		assert.Equal(t, http.StatusOK, res.StatusCode, "got wrong status code, respone: %v", string(response))
+		assert.Equal(t, http.StatusAccepted, res.StatusCode, "got wrong status code, response: %v", string(response))
 
-		s.FlushStorage()
+		err = s.FlushStorage()
+		require.NoError(t, err)
 
 		for _, tt := range cases {
 			res, err := cl.Get(tt.want)
@@ -394,7 +401,6 @@ func Test_DeleteBatch(t *testing.T) {
 				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
 				assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
 			}
-
 		}
 	})
 }
@@ -405,6 +411,7 @@ func Test_MakeLong(t *testing.T) {
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr(), s)
 	defer ts.Close()
+
 	cl := newTestClient(ts)
 
 	t.Run("Get URL", func(t *testing.T) {
@@ -478,8 +485,6 @@ func resetStorage(path, dsn string) error {
 			return err
 		}
 	}
-
-	fmt.Println("storage reset successful")
 
 	return nil
 }

@@ -60,11 +60,13 @@ func NewShortener(c *config.Config, s *storage.Storage) *MyShortener {
 	myShortener.config = c
 	myShortener.storage = s
 	myShortener.handlers = []router.HandlerDesc{
-		{"POST", "/", http.HandlerFunc(myShortener.makeShort), chi.Middlewares{gzipMW, myShortener.authMW}},
-		{"GET", "/{id}", http.HandlerFunc(myShortener.makeLong), chi.Middlewares{gzipMW, myShortener.authMW}},
-		{"POST", "/api/shorten", http.HandlerFunc(myShortener.makeShortJSON), chi.Middlewares{gzipMW, myShortener.authMW}},
-		{"GET", "/api/user/urls", http.HandlerFunc(myShortener.makeLongByUser), chi.Middlewares{gzipMW, myShortener.authMW}},
-		{"DELETE", "/api/user/urls", http.HandlerFunc(myShortener.deleteBatch), chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(myShortener.makeShort), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(myShortener.makeLong), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(myShortener.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(myShortener.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(myShortener.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(myShortener.deleteBatch), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(myShortener.pingStorage), Middlewares: chi.Middlewares{gzipMW, myShortener.authMW}},
 	}
 
 	return myShortener
@@ -165,6 +167,7 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+
 		return
 	}
 
@@ -245,15 +248,17 @@ func (myShortener *MyShortener) makeURL(id string) string {
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
-	if errors.Is(err, storageerrors.ErrURLGone) {
+
+	switch {
+	case errors.Is(err, storageerrors.ErrURLGone):
 		http.Error(w, err.Error(), http.StatusGone)
 
 		return
-	} else if err != nil {
+	case err != nil && !errors.Is(err, storageerrors.ErrURLGone):
 		http.Error(w, err.Error(), http.StatusNotFound)
 
 		return
-	} else if redirect == "" {
+	case redirect == "":
 		http.Error(w, fmt.Sprintf("id %v not found", id), http.StatusNotFound)
 
 		return
@@ -321,6 +326,8 @@ func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Reque
 
 		return
 	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (myShortener *MyShortener) findURL(key string) (string, error) {

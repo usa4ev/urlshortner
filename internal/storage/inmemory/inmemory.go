@@ -3,8 +3,9 @@ package inmemory
 import (
 	"context"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 
@@ -59,6 +60,7 @@ func (s ims) LoadURL(id string) (string, error) {
 		if val.(storer).deleted {
 			return "", storageerrors.ErrURLGone
 		}
+
 		return val.(storer).url, nil
 	}
 
@@ -68,7 +70,7 @@ func (s ims) LoadURL(id string) (string, error) {
 func (s ims) LoadUrlsByUser(add func(id, url string), userID string) error {
 	ch := make(chan item)
 
-	s.findURLsByUser(ch, context.Background(), userID)
+	s.findURLsByUser(context.Background(), ch, userID)
 
 	for v := range ch {
 		add(v.id, v.data.url)
@@ -105,10 +107,10 @@ func (s ims) StoreSession(id, session string) error {
 func (s ims) Flush() error {
 	if s.fileManager != nil {
 		file, err := s.fileManager.OpnFileW()
-
 		if err != nil {
 			return err
 		}
+
 		writer := filestorage.NewWriter(file)
 
 		f := func(key, value any) bool {
@@ -116,6 +118,7 @@ func (s ims) Flush() error {
 			if err != nil {
 				return false
 			}
+
 			return true
 		}
 
@@ -130,12 +133,11 @@ func (s ims) Flush() error {
 }
 
 func (s ims) DeleteURLs(userID string, ids []string) error {
-
 	ch := make(chan item)
 
 	g, ctx := errgroup.WithContext(context.Background())
 
-	s.findURLsByUser(ch, ctx, userID)
+	s.findURLsByUser(ctx, ch, userID)
 
 	g.Go(func() error {
 		var err error
@@ -144,6 +146,7 @@ func (s ims) DeleteURLs(userID string, ids []string) error {
 				if val.id == v {
 					s.data.Store(val.id, storer{val.data.url, val.data.userID, true})
 					ids = append(ids[:i], ids[i+1:]...)
+
 					break
 				}
 			}
@@ -159,7 +162,7 @@ func (s ims) DeleteURLs(userID string, ids []string) error {
 	return nil
 }
 
-func (s ims) findURLsByUser(ch chan item, ctx context.Context, userID string) {
+func (s ims) findURLsByUser(ctx context.Context, ch chan item, userID string) {
 	go func() {
 		defer func(ch chan item) {
 			close(ch)

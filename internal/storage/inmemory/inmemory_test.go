@@ -187,9 +187,10 @@ func Test_ims_DeleteURLs(t *testing.T) {
 			ids[i] = tt.id
 		}
 
-		storage.DeleteURLs(testUserID, ids)
+		err := storage.DeleteURLs(testUserID, ids)
+		require.NoError(t, err)
 
-		err := storage.LoadUrlsByUser(f, testUserID)
+		err = storage.LoadUrlsByUser(f, testUserID)
 		if err != nil {
 			require.NoError(t, err, "LoadUrlsByUser() error")
 		}

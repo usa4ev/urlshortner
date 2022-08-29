@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/usa4ev/urlshortner/internal/config"
@@ -16,11 +15,6 @@ import (
 )
 
 func main() {
-	fmt.Println("srv start...")
-	defer fmt.Println("srv exit")
-
-	fmt.Printf("vars: %v\n", strings.Join(os.Environ(), "\n"))
-
 	os.Environ()
 	// The HTTP Server
 	cfg := config.New()
@@ -28,8 +22,6 @@ func main() {
 	myShortener := shortener.NewShortener(cfg, strg)
 	r := router.NewRouter(myShortener)
 	server := &http.Server{Addr: cfg.SrvAddr(), Handler: r}
-
-	fmt.Printf("addr: %v\n", cfg.SrvAddr())
 
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
