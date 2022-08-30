@@ -102,9 +102,11 @@ func (db *database) initBuffer() {
 	t := time.NewTicker(30 * time.Second)
 
 	go func() {
-		<-t.C
-		if buf.Buffered() > 0 {
-			buf.Flush()
+		for {
+			<-t.C
+			if buf.Buffered() > 0 {
+				db.Flush()
+			}
 		}
 	}()
 
@@ -314,13 +316,15 @@ func (db database) DeleteURLs(userID string, ids []string) error {
 	_, err = db.buffer.Write(b)
 
 	if err != nil {
-		return fmt.Errorf("failed to represent write to buf: %w", err)
+		return fmt.Errorf("failed to write to buf: %w", err)
 	}
 
 	return nil
 }
 
 func (ab *asyncBuf) itsToBytes(its deletedItems) ([]byte, error) {
+	ab.mx.Lock()
+	defer ab.mx.Unlock()
 	if err := ab.enc.Encode(its); err != nil {
 		return nil, fmt.Errorf("enconig failed: %w", err)
 	}
@@ -332,8 +336,6 @@ func (ab *asyncBuf) itsToBytes(its deletedItems) ([]byte, error) {
 
 func (db database) Write(p []byte) (int, error) {
 	var err error
-
-	defer db.buffer.ew.Reset()
 
 	pr, pw := io.Pipe()
 	defer pr.Close()

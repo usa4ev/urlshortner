@@ -248,7 +248,6 @@ func (myShortener *MyShortener) makeURL(id string) string {
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
-
 	switch {
 	case errors.Is(err, storageerrors.ErrURLGone):
 		http.Error(w, err.Error(), http.StatusGone)
@@ -259,6 +258,7 @@ func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request)
 
 		return
 	case redirect == "":
+
 		http.Error(w, fmt.Sprintf("id %v not found", id), http.StatusNotFound)
 
 		return
@@ -308,6 +308,7 @@ func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Reque
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	message := make([]string, 0)
@@ -315,7 +316,6 @@ func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Reque
 
 	if err := dec.Decode(&message); err != nil {
 		http.Error(w, "failed to decode message: "+err.Error(), http.StatusBadRequest)
-
 		return
 	}
 
@@ -323,7 +323,6 @@ func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Reque
 
 	if err != nil {
 		http.Error(w, "deletion failed: "+err.Error(), http.StatusBadRequest)
-
 		return
 	}
 

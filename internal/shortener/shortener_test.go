@@ -6,18 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/router"
-	"github.com/usa4ev/urlshortner/internal/shortener"
-	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
 const (
@@ -321,7 +322,7 @@ func Test_GetURLsByUser(t *testing.T) {
 }
 
 func Test_DeleteBatch(t *testing.T) {
-	config := testConfigDB()
+	config := testConfig()
 	s := shortener.NewShortener(config, storage.New(config))
 	cases := getTests(config.BaseURL())
 	ts := newTestSrv(config.SrvAddr(), s)
@@ -354,7 +355,7 @@ func Test_DeleteBatch(t *testing.T) {
 			}
 		}
 
-		for _, tt := range cases {
+		for i, tt := range cases {
 			batch := make([]string, 1)
 			batch[0] = tt.id
 
@@ -383,17 +384,14 @@ func Test_DeleteBatch(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, http.StatusAccepted, res.StatusCode, "got wrong status code, response: %v", string(response))
-
-			err = s.FlushStorage()
-			require.NoError(t, err)
+			if i%2 == 0 {
+				err = s.FlushStorage()
+				require.NoError(t, err)
+			}
 		}
 
 		err := s.FlushStorage()
 		require.NoError(t, err)
-		//timer := time.NewTimer(33 * time.Second)
-		//<-timer.C
-
-		//ok := false
 
 		for _, tt := range cases {
 			res, err := cl.Get(tt.want)
@@ -402,16 +400,9 @@ func Test_DeleteBatch(t *testing.T) {
 			require.NoError(t, res.Body.Close(), "url: %v", tt.url)
 			require.NoError(t, err)
 
-			//if idToDelete == tt.id {
 			assert.Equal(t, http.StatusGone, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
-			//ok = !ok
-			//} else {
-			//	assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "got wrong status code\nurl:%v\nresponse:%v", tt.url, string(response))
-			//	assert.Equal(t, tt.url, res.Header.Get("Location"), " got wrong location")
-			//}
-		}
 
-		//assert.Equal(t, true, ok, "target id was not deleted")
+		}
 	})
 }
 
@@ -508,12 +499,11 @@ func testConfig() *config.Config {
 		config.IgnoreOsArgs())
 }
 
-func testConfigDB() *config.Config {
-	return config.New(config.WithEnvVars(map[string]string{
-		"BASE_URL":          "http://localhost:8080",
-		"SERVER_ADDRESS":    "localhost:8080",
-		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
-		"DATABASE_DSN":      "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
-	}),
-		config.IgnoreOsArgs())
-}
+//func testConfigDB() *config.Config {
+//	return config.New(config.WithEnvVars(map[string]string{
+//		"BASE_URL":       "http://localhost:8080",
+//		"SERVER_ADDRESS": "localhost:8080",
+//		"DATABASE_DSN":   "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
+//	}),
+//		config.IgnoreOsArgs())
+//}
