@@ -56,7 +56,8 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		},
 	}
 
-	storage := inmemory.New(config)
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run("Strore URL's", func(t *testing.T) {
@@ -114,7 +115,8 @@ func Test_ims_StoreLoadUserInfo(t *testing.T) {
 		},
 	}
 
-	storage := inmemory.New(config)
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run("Store user info", func(t *testing.T) {
@@ -165,7 +167,8 @@ func Test_ims_DeleteURLs(t *testing.T) {
 		},
 	}
 
-	storage := inmemory.New(config)
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run("Strore URL's", func(t *testing.T) {
