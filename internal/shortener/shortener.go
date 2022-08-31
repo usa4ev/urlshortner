@@ -16,14 +16,14 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/go-chi/chi"
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/storage"
+	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 
+	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/usa4ev/urlshortner/internal/storage/database"
 )
 
 const (

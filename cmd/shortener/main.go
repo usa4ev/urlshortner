@@ -18,7 +18,11 @@ func main() {
 	os.Environ()
 	// The HTTP Server
 	cfg := config.New()
-	strg := storage.New(cfg)
+	strg, err := storage.New(cfg)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	myShortener := shortener.NewShortener(cfg, strg)
 	r := router.NewRouter(myShortener)
 	server := &http.Server{Addr: cfg.SrvAddr(), Handler: r}
@@ -38,10 +42,7 @@ func main() {
 	}()
 
 	// Run the server
-	err := server.ListenAndServe()
-
-	fmt.Printf("listen and serve err: %v\n", err)
-
+	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
 	}

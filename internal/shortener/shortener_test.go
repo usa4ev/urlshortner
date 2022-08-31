@@ -13,12 +13,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -79,11 +80,14 @@ func getTests(baseURL string) tests {
 }
 
 func Test_MakeShort(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	cases := getTests(config.BaseURL())
-	resetStorage(config.StoragePath(), config.DBDSN())
-	ts := newTestSrv(config.SrvAddr(), s)
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
+
+	s := shortener.NewShortener(cfg, strg)
+	cases := getTests(cfg.BaseURL())
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -129,18 +133,21 @@ func Test_MakeShort(t *testing.T) {
 }
 
 func Test_MakeShortJSON(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr(), s)
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
+
+	s := shortener.NewShortener(cfg, strg)
+	cases := getTests(cfg.BaseURL())
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	cl := newTestClient(ts)
 
 	defer ts.Close()
-	resetStorage(config.StoragePath(), config.DBDSN())
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
 
 	for _, tt := range cases {
 		t.Run("POST JSON", func(t *testing.T) {
-			require.NoError(t, resetStorage(config.StoragePath(), config.DBDSN()), "failed to reset storage")
+			require.NoError(t, resetStorage(cfg.StoragePath(), cfg.DBDSN()), "failed to reset storage")
 
 			req := struct {
 				URL string `json:"url"`
@@ -175,7 +182,7 @@ func Test_MakeShortJSON(t *testing.T) {
 
 	t.Run("POST JSON with conflict", func(t *testing.T) {
 		tt := cases[0]
-		require.NoError(t, resetStorage(config.StoragePath(), config.DBDSN()), "failed to reset storage")
+		require.NoError(t, resetStorage(cfg.StoragePath(), cfg.DBDSN()), "failed to reset storage")
 
 		req := struct {
 			URL string `json:"url"`
@@ -218,7 +225,7 @@ func Test_MakeShortJSON(t *testing.T) {
 	})
 
 	t.Run("Wrong content type header", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DBDSN())
+		resetStorage(cfg.StoragePath(), cfg.DBDSN())
 		tt := cases[0]
 		req := struct {
 			URL string `json:"url"`
@@ -245,12 +252,15 @@ func Test_MakeShortJSON(t *testing.T) {
 }
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	resetStorage(config.StoragePath(), config.DBDSN())
-	cases := getTests(config.BaseURL())
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
 
-	ts := newTestSrv(config.SrvAddr(), s)
+	s := shortener.NewShortener(cfg, strg)
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	cases := getTests(cfg.BaseURL())
+
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	defer ts.Close()
 
 	t.Run("Empty storage", func(t *testing.T) {
@@ -264,15 +274,18 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 }
 
 func Test_GetURLsByUser(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr(), s)
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
+
+	s := shortener.NewShortener(cfg, strg)
+	cases := getTests(cfg.BaseURL())
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
 
-	defer resetStorage(config.StoragePath(), config.DBDSN())
+	defer resetStorage(cfg.StoragePath(), cfg.DBDSN())
 
 	t.Run("Get URL's by user", func(t *testing.T) {
 		var userID string
@@ -322,15 +335,18 @@ func Test_GetURLsByUser(t *testing.T) {
 }
 
 func Test_DeleteBatch(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr(), s)
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
+
+	s := shortener.NewShortener(cfg, strg)
+	cases := getTests(cfg.BaseURL())
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
 
-	defer resetStorage(config.StoragePath(), config.DBDSN())
+	defer resetStorage(cfg.StoragePath(), cfg.DBDSN())
 
 	t.Run("Delete batch", func(t *testing.T) {
 		var userID string
@@ -407,16 +423,19 @@ func Test_DeleteBatch(t *testing.T) {
 }
 
 func Test_MakeLong(t *testing.T) {
-	config := testConfig()
-	s := shortener.NewShortener(config, storage.New(config))
-	cases := getTests(config.BaseURL())
-	ts := newTestSrv(config.SrvAddr(), s)
+	cfg := testcfg()
+	strg, err := storage.New(cfg)
+	require.NoError(t, err)
+
+	s := shortener.NewShortener(cfg, strg)
+	cases := getTests(cfg.BaseURL())
+	ts := newTestSrv(cfg.SrvAddr(), s)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
 
 	t.Run("Get URL", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DBDSN())
+		resetStorage(cfg.StoragePath(), cfg.DBDSN())
 		for _, tt := range cases {
 			res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 			require.NoError(t, err, "url: %v", tt.url)
@@ -436,10 +455,10 @@ func Test_MakeLong(t *testing.T) {
 	})
 
 	t.Run("Get nonexistent url", func(t *testing.T) {
-		if err := resetStorage(config.StoragePath(), config.DBDSN()); err != nil {
+		if err := resetStorage(cfg.StoragePath(), cfg.DBDSN()); err != nil {
 			require.NoError(t, err, "failed to reset storage")
 		}
-		resetStorage(config.StoragePath(), config.DBDSN())
+		resetStorage(cfg.StoragePath(), cfg.DBDSN())
 		tt := cases[0]
 		res, err := cl.Get(tt.want + "i")
 		require.NoError(t, err, "url: %v", tt.url)
@@ -450,10 +469,10 @@ func Test_MakeLong(t *testing.T) {
 	tt := struct {
 		url  string
 		want string
-	}{"gzip.org/test", config.BaseURL() + "/" + base64.RawURLEncoding.EncodeToString([]byte("gzip.org/test"))}
+	}{"gzip.org/test", cfg.BaseURL() + "/" + base64.RawURLEncoding.EncodeToString([]byte("gzip.org/test"))}
 
 	t.Run("Get gzipMW", func(t *testing.T) {
-		resetStorage(config.StoragePath(), config.DBDSN())
+		resetStorage(cfg.StoragePath(), cfg.DBDSN())
 		res, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
 		require.NoError(t, err, "url: %v", tt.url)
 		require.Equal(t, http.StatusCreated, res.StatusCode)
@@ -490,7 +509,7 @@ func resetStorage(path, dsn string) error {
 	return nil
 }
 
-func testConfig() *config.Config {
+func testcfg() *config.Config {
 	return config.New(config.WithEnvVars(map[string]string{
 		"BASE_URL":          "http://localhost:8080",
 		"SERVER_ADDRESS":    "localhost:8080",
@@ -499,11 +518,11 @@ func testConfig() *config.Config {
 		config.IgnoreOsArgs())
 }
 
-//func testConfigDB() *config.Config {
-//	return config.New(config.WithEnvVars(map[string]string{
+//func testcfgDB() *cfg.cfg {
+//	return cfg.New(cfg.WithEnvVars(map[string]string{
 //		"BASE_URL":       "http://localhost:8080",
 //		"SERVER_ADDRESS": "localhost:8080",
 //		"DATABASE_DSN":   "user=postgres password=postgres host=localhost port=5432 dbname=testdb",
 //	}),
-//		config.IgnoreOsArgs())
+//		cfg.IgnoreOsArgs())
 //}

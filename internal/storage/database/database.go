@@ -44,7 +44,7 @@ type (
 	}
 )
 
-func New(dsn string, ctx context.Context) database {
+func New(dsn string, ctx context.Context) (database, error) {
 	var (
 		db  database
 		err error
@@ -53,22 +53,22 @@ func New(dsn string, ctx context.Context) database {
 
 	db.DB, err = sql.Open("pgx", dsn)
 	if err != nil {
-		panic(err.Error())
+		return db, fmt.Errorf("cannot connect to database: %w", err)
 	}
 
 	err = db.initDB()
 	if err != nil {
-		panic(err.Error())
+		return db, fmt.Errorf("cannot init database: %w", err)
 	}
 
 	db.stmnts, err = db.prepareStatements()
 	if err != nil {
-		panic(err.Error())
+		return db, fmt.Errorf("failed to prepare statements for database storage: %w", err)
 	}
 
 	db.initBuffer()
 
-	return db
+	return db, nil
 }
 
 func (db database) initDB() error {
@@ -78,7 +78,7 @@ func (db database) initDB() error {
 
 	_, err := db.Exec(query)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	query = `CREATE TABLE IF NOT EXISTS urls (
@@ -91,7 +91,7 @@ func (db database) initDB() error {
 
 	_, err = db.Exec(query)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return err

@@ -34,9 +34,8 @@ type (
 	}
 )
 
-func New(c config) ims {
-	i := ims{sessions: &sync.Map{}}
-
+func New(c config) (ims, error) {
+	var i ims
 	storagePath := c.StoragePath()
 	if storagePath != "" {
 		// setting up file storage if required
@@ -44,7 +43,8 @@ func New(c config) ims {
 
 		data, err := i.fileManager.ReadFile()
 		if err != nil {
-			panic(fmt.Errorf("failed to read from storage: %w", err))
+
+			return i, fmt.Errorf("failed to read from storage: %w", err)
 		}
 
 		i.data = data
@@ -52,7 +52,9 @@ func New(c config) ims {
 		i.data = &sync.Map{}
 	}
 
-	return i
+	i.sessions = &sync.Map{}
+
+	return i, nil
 }
 
 func (s ims) LoadURL(id string) (string, error) {
