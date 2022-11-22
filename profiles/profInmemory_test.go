@@ -2,12 +2,12 @@ package profiles
 
 import (
 	"fmt"
-	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
+	_ "net/http/pprof"
 	"strconv"
 	"testing"
 
-	_ "net/http/pprof"
+	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
 )
 
 const (
