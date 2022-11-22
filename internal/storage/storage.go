@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/usa4ev/urlshortner/internal/storage/database"
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory"
@@ -30,16 +31,28 @@ type (
 		LoadUser(session string) (string, error)
 		StoreSession(id, session string) error
 		Flush() error
+		DeleteURLs(userID string, ids []string) error
 	}
 )
 
-func New(c config) *Storage {
+func New(c config) (*Storage, error) {
 	dsn := c.DBDSN()
 	if dsn == "" {
-		return &Storage{inmemory.New(c)}
+		s, err := inmemory.New(c)
+		if err != nil {
+
+			return nil, fmt.Errorf("cannot create inmemory storage: %w", err)
+		}
+
+		return &Storage{s}, nil
 	}
 
-	return &Storage{database.New(dsn, context.Background())}
+	db, err := database.New(dsn, context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("cannot create database storage: %w", err)
+	}
+
+	return &Storage{db}, nil
 }
 
 func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pairs, error) {

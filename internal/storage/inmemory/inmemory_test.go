@@ -56,7 +56,8 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		},
 	}
 
-	storage := inmemory.New(config)
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run("Strore URL's", func(t *testing.T) {
@@ -114,7 +115,8 @@ func Test_ims_StoreLoadUserInfo(t *testing.T) {
 		},
 	}
 
-	storage := inmemory.New(config)
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run("Store user info", func(t *testing.T) {
@@ -133,4 +135,68 @@ func Test_ims_StoreLoadUserInfo(t *testing.T) {
 			assert.Equal(t, tt.userid, got, "got wrong user id by id %v", tt.session)
 		})
 	}
+}
+
+func Test_ims_DeleteURLs(t *testing.T) {
+	config := config.New(config.IgnoreOsArgs())
+	defer resetStorage(config.StoragePath())
+
+	testUserID := "testuser"
+
+	type args struct {
+		id,
+		url,
+		userid string
+	}
+
+	tests := []args{
+		{
+			"1",
+			"ya.ru",
+			testUserID,
+		},
+		{
+			"2",
+			"go.com",
+			testUserID,
+		},
+		{
+			"3",
+			"go.org",
+			"different user",
+		},
+	}
+
+	storage, err := inmemory.New(config)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run("Strore URL's", func(t *testing.T) {
+			if err := storage.StoreURL(tt.id, tt.url, tt.userid); err != nil {
+				require.NoError(t, err, "Error occurred when tried to store URL")
+			}
+		})
+	}
+
+	t.Run("Delete URL's", func(t *testing.T) {
+		type pair struct{ shortURL, originalURL string }
+		p := []pair{}
+		f := func(shortURL, originalURL string) {
+			p = append(p, pair{shortURL, originalURL})
+		}
+
+		ids := make([]string, len(tests))
+		for i, tt := range tests {
+			ids[i] = tt.id
+		}
+
+		err := storage.DeleteURLs(testUserID, ids)
+		require.NoError(t, err)
+
+		err = storage.LoadUrlsByUser(f, testUserID)
+		if err != nil {
+			require.NoError(t, err, "LoadUrlsByUser() error")
+		}
+		assert.Equal(t, 0, len(p), "got wrong number of url's by user %v", testUserID)
+	})
 }
