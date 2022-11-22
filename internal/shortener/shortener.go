@@ -1,3 +1,5 @@
+// Package shortener implements handling methods
+// used for URL-shortner service.
 package shortener
 
 import (
@@ -29,29 +31,16 @@ import (
 const (
 	ctJSON       string     = "application/json"
 	key          string     = "9cc1ee455a3363ffc504f40006f70d0c8276648a5d3eb3f9524e94d1b7a83aef"
-	ctxKeyUserID contextKey = 0
+	ctxKeyUserID contextKey = 0 // key to a userID context value
 )
 
 type (
 	MyShortener struct {
 		storage  *storage.Storage
 		config   *config.Config
-		handlers []router.HandlerDesc
+		handlers []router.HandlerDesc //list of handlers that serve HTTP methods
 	}
-	urlreq struct {
-		URL string `json:"url"`
-	}
-	urlres struct {
-		Result string `json:"result"`
-	}
-	urlwid struct {
-		CorrelationID string `json:"correlation_id"`
-		OriginalURL   string `json:"original_url"`
-	}
-	urlwidres struct {
-		CorrelationID string `json:"correlation_id"`
-		ShortURL      string `json:"short_url"`
-	}
+
 	contextKey int
 )
 
@@ -72,6 +61,11 @@ func NewShortener(c *config.Config, s *storage.Storage) *MyShortener {
 	return myShortener
 }
 
+func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
+	return myShortener.handlers
+}
+
+// pingStorage returns error code as a response if failed to connect to database storage.
 func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Request) {
 	err := database.Pingdb(myShortener.config.DBDSN())
 	if err != nil {
@@ -81,6 +75,7 @@ func (myShortener *MyShortener) pingStorage(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
+// makeShort responds with a short URL as a plain text.
 func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	userID := r.Context().Value(ctxKeyUserID).(string)
@@ -122,6 +117,18 @@ func (myShortener *MyShortener) makeShort(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// urlreq & urlres are, respectively, request and response structures
+// used to decode and encode messages when dealing with JSON content-type.
+type (
+	urlreq struct {
+		URL string `json:"url"`
+	}
+	urlres struct {
+		Result string `json:"result"`
+	}
+)
+
+// makeShortJSON responds with a short URL as a urlres JSON structure.
 func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
 		http.Error(w, "unsupported content type", http.StatusBadRequest)
@@ -181,6 +188,21 @@ func (myShortener *MyShortener) makeShortJSON(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// urlwid & urlwidres are, respectively, request and response structures
+// bounded with correlation_id field.
+type (
+	urlwid struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
+	}
+	urlwidres struct {
+		CorrelationID string `json:"correlation_id"`
+		ShortURL      string `json:"short_url"`
+	}
+)
+
+// shortenBatchJSON responds with a short URL as an urlwidres JSON structure
+// setting correlation_id with respective value from recieved urlwid.
 func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
 		http.Error(w, "unsupported content type", http.StatusBadRequest)
@@ -232,7 +254,9 @@ func (myShortener *MyShortener) shortenBatchJSON(w http.ResponseWriter, r *http.
 	}
 }
 
+// shortenURL returns a short id and a short URL.
 func (myShortener *MyShortener) shortenURL(url string) (string, string) {
+	// ToDo: the way it works results in URLs become rather longer than shorter.
 	id := base64.RawURLEncoding.EncodeToString([]byte(url))
 	return id, myShortener.makeURL(id)
 }
@@ -245,6 +269,7 @@ func (myShortener *MyShortener) makeURL(id string) string {
 	return myShortener.config.BaseURL() + "/" + id
 }
 
+// makeLong load URL from storage by ID and, if found, redirects client.
 func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[1:]
 	redirect, err := myShortener.findURL(id)
@@ -267,6 +292,8 @@ func (myShortener *MyShortener) makeLong(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
+// makeLongByUser responds with encoded JSON collection
+// that contains all the URLs uploaded by the user.
 func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(ctxKeyUserID)
 	res, err := myShortener.storage.LoadByUser(myShortener.makeURL, userID.(string))
@@ -291,6 +318,8 @@ func (myShortener *MyShortener) makeLongByUser(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// deleteBatch receives list of URL ids that need to be deleted.
+// Deletion is executed asynchronously.
 func (myShortener *MyShortener) deleteBatch(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-Type"); ct != ctJSON {
 		http.Error(w, "unsupported content type", http.StatusBadRequest)
@@ -337,6 +366,8 @@ func (myShortener *MyShortener) FlushStorage() error {
 	return myShortener.storage.Flush()
 }
 
+// gzipWriter is used to replace default http.ResponseWriter
+// when handling requests fom clients that support compressed encoding.
 type gzipWriter struct {
 	http.ResponseWriter
 	Writer io.Writer
@@ -369,6 +400,8 @@ func readBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
+// gzipMW middleware replaces default http.ResponseWriter with
+// gzipWriter if the client supports gzip encoding.
 func gzipMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		supportedEncoding := r.Header.Values("Accept-Encoding")
@@ -395,6 +428,7 @@ func gzipMW(next http.Handler) http.Handler {
 	})
 }
 
+// authMW middleware enriches the request context with UserID
 func (myShortener *MyShortener) authMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -517,8 +551,4 @@ func ctxWithSession(r *http.Request, usrID string) *http.Request {
 func setCookie(w http.ResponseWriter, name string, value string) {
 	cookie := &http.Cookie{Name: name, Value: value}
 	http.SetCookie(w, cookie)
-}
-
-func (myShortener *MyShortener) Handlers() []router.HandlerDesc {
-	return myShortener.handlers
 }

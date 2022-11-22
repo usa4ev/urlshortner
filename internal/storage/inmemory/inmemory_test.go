@@ -2,6 +2,7 @@ package inmemory_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -98,6 +99,38 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		}
 		assert.Equal(t, c, len(p), "got wrong number of url's by user %v", testUserID)
 	})
+}
+
+func Example() {
+	config := config.New(config.IgnoreOsArgs())
+
+	// new storage
+	storage, _ := inmemory.New(config)
+
+	// url data to store
+	id := "1" // internal identifier
+	userID := "New User"
+	url := "foo.com"
+
+	// store data
+	storage.StoreURL(id, url, userID)
+
+	// load data
+	got, _ := storage.LoadURL(id)
+
+	fmt.Printf("Stored %v, got %v", url, got)
+
+	// session data to store
+	userID = "2"
+	token := "jkSDFg8923ur"
+
+	// store session
+	storage.StoreSession(userID, token)
+
+	// load userID
+	got, _ = storage.LoadUser(token)
+
+	fmt.Printf("Stored %v, got %v", userID, got)
 }
 
 func Test_ims_StoreLoadUserInfo(t *testing.T) {
