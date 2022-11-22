@@ -82,13 +82,11 @@ func (s ims) LoadUrlsByUser(add func(id, url string), userID string) error {
 }
 
 func (s ims) StoreURL(id, url, userID string) error {
-	var err error
-
 	if _, ok := s.data.LoadOrStore(id, storer{url, userID, false}); ok {
-		err = storageerrors.ErrConflict
+		return storageerrors.ErrConflict
 	}
 
-	return err
+	return nil
 }
 
 func (s ims) LoadUser(session string) (string, error) {
