@@ -1,3 +1,5 @@
+// Package storage provides an abstract interface
+// for concrete storage implementations.
 package storage
 
 import (
@@ -24,6 +26,7 @@ type (
 		DBDSN() string
 		StoragePath() string
 	}
+
 	storerLoader interface {
 		LoadURL(id string) (string, error)
 		LoadUrlsByUser(func(id, url string), string) error
@@ -35,6 +38,8 @@ type (
 	}
 )
 
+// New returns new storage created using config
+// to define the implementation.
 func New(c config) (*Storage, error) {
 	dsn := c.DBDSN()
 	if dsn == "" {
@@ -55,6 +60,8 @@ func New(c config) (*Storage, error) {
 	return &Storage{db}, nil
 }
 
+// LoadByUser wraps LoadUrlsByUser storage method
+//	to pass down the common appending function.
 func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pairs, error) {
 	p := pairs{}
 	f := func(id, url string) {

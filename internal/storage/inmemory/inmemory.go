@@ -1,3 +1,7 @@
+// Package inmemory implements a thread-safe
+// in-memory storage via sync.map to store sessions and URLs.
+// It can, optionally, use file storage to load previously
+// saved values if the path to a storage file is defined in config.
 package inmemory
 
 import (
@@ -7,9 +11,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
-
 	"github.com/usa4ev/urlshortner/internal/storage/inmemory/filestorage"
+	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 )
 
 type (
@@ -29,11 +32,13 @@ type (
 		userID  string
 		deleted bool
 	}
+
 	config interface {
 		StoragePath() string
 	}
 )
 
+// New creates new storage and load data from file if necessary.
 func New(c config) (ims, error) {
 	var i ims
 	storagePath := c.StoragePath()
@@ -57,6 +62,7 @@ func New(c config) (ims, error) {
 	return i, nil
 }
 
+// LoadURL returns long URL loading one by id.
 func (s ims) LoadURL(id string) (string, error) {
 	if val, ok := s.data.Load(id); ok {
 		if val.(storer).deleted {
@@ -69,6 +75,7 @@ func (s ims) LoadURL(id string) (string, error) {
 	return "", fmt.Errorf("cannot find url by id %v", id)
 }
 
+// LoadUrlsByUser uses received function to return loaded values.
 func (s ims) LoadUrlsByUser(add func(id, url string), userID string) error {
 	ch := make(chan item)
 
@@ -81,16 +88,16 @@ func (s ims) LoadUrlsByUser(add func(id, url string), userID string) error {
 	return nil
 }
 
+// StoreURL adds url to the data and returns an error if the key is not unique.
 func (s ims) StoreURL(id, url, userID string) error {
-	var err error
-
 	if _, ok := s.data.LoadOrStore(id, storer{url, userID, false}); ok {
-		err = storageerrors.ErrConflict
+		return storageerrors.ErrConflict
 	}
 
-	return err
+	return nil
 }
 
+// LoadUser user ID from the sessions map using passed token as a key.
 func (s ims) LoadUser(session string) (string, error) {
 	val, ok := s.sessions.Load(session)
 	if !ok {
@@ -100,12 +107,14 @@ func (s ims) LoadUser(session string) (string, error) {
 	return val.(string), nil
 }
 
+// StoreSession adds user ID to the sessions map.
 func (s ims) StoreSession(id, session string) error {
 	s.sessions.Store(session, id)
 
 	return nil
 }
 
+// Flush writes data from the storage to a file if file manager is set.
 func (s ims) Flush() error {
 	if s.fileManager != nil {
 		file, err := s.fileManager.OpnFileW()
@@ -131,6 +140,7 @@ func (s ims) Flush() error {
 	return nil
 }
 
+// DeleteURLs deletes URLs if they were uploaded by the user with userID.
 func (s ims) DeleteURLs(userID string, ids []string) error {
 	ch := make(chan item)
 
@@ -140,8 +150,11 @@ func (s ims) DeleteURLs(userID string, ids []string) error {
 
 	g.Go(func() error {
 		var err error
+		// iterate items found by userID
 		for val := range ch {
 			for i, v := range ids {
+				// if items id matches one from the ids slice
+				// we can safely delete it and remove the id from the slice
 				if val.id == v {
 					s.data.Store(val.id, storer{val.data.url, val.data.userID, true})
 					ids = append(ids[:i], ids[i+1:]...)
