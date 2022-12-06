@@ -14,7 +14,19 @@ import (
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
+var buildVersion = "N/A"
+var buildDate = "N/A"
+var buildCommit = "N/A"
+
+func printMetaInfo() {
+	fmt.Printf("Build version: %v\n", buildVersion)
+	fmt.Printf("Build date: %s\n", buildDate)
+	fmt.Printf("Build commit: %v\n", buildCommit)
+}
+
 func main() {
+	printMetaInfo()
+
 	os.Environ()
 	// The HTTP Server
 	cfg := config.New()
