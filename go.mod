@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/go-chi/chi v1.5.4
 	github.com/google/uuid v1.3.0
+	github.com/gostaticanalysis/nilerr v0.1.1
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/sync v0.1.0
@@ -13,9 +14,11 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v0.4.1 // indirect
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect
+	github.com/gostaticanalysis/comment v1.4.1 // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

@@ -1,8 +1,7 @@
-package staticlint
+package main
 
 import (
-	"strings"
-
+	"github.com/gostaticanalysis/nilerr"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/asmdecl"
@@ -32,9 +31,14 @@ import (
 	"golang.org/x/tools/go/analysis/passes/unreachable"
 	"golang.org/x/tools/go/analysis/passes/unsafeptr"
 	"golang.org/x/tools/go/analysis/passes/unusedresult"
+	"honnef.co/go/tools/quickfix"
+	"honnef.co/go/tools/simple"
 	"honnef.co/go/tools/staticcheck"
+	"honnef.co/go/tools/stylecheck"
 
 	"github.com/usa4ev/urlshortner/cmd/staticlint/osexitcheck"
+
+	"strings"
 )
 
 func main() {
@@ -70,12 +74,30 @@ func main() {
 		unusedresult.Analyzer,
 	}
 
-	// add all SA* checks and few more
+	// add all SA* checks
 	for _, a := range staticcheck.Analyzers {
-		if strings.HasPrefix(a.Analyzer.Name, "SA") ||
-			a.Analyzer.Name == "S1028" || // Simplify error construction with fmt.Errorf
-			a.Analyzer.Name == "ST1016" || // Use consistent method receiver names
-			a.Analyzer.Name == "QF1002" || // Convert untagged switch to tagged switch
+		if strings.HasPrefix(a.Analyzer.Name, "SA") {
+			analysers = append(analysers, a.Analyzer)
+		}
+	}
+
+	// add S1028 check
+	for _, a := range simple.Analyzers {
+		if a.Analyzer.Name == "S1028" {
+			analysers = append(analysers, a.Analyzer)
+		}
+	}
+
+	// add ST1016 check
+	for _, a := range stylecheck.Analyzers {
+		if a.Analyzer.Name == "ST1016" {
+			analysers = append(analysers, a.Analyzer)
+		}
+	}
+
+	// add QF1002 & QF1003 checks
+	for _, a := range quickfix.Analyzers {
+		if a.Analyzer.Name == "QF1002" || // Convert untagged switch to tagged switch
 			a.Analyzer.Name == "QF1003" { //Convert if/else-if chain to tagged switch
 			analysers = append(analysers, a.Analyzer)
 		}
@@ -83,6 +105,9 @@ func main() {
 
 	// add osexitcheck
 	analysers = append(analysers, osexitcheck.Analyzer)
+
+	// add nilerr
+	analysers = append(analysers, nilerr.Analyzer)
 
 	multichecker.Main(
 		analysers...,
