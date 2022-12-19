@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -19,9 +20,11 @@ type (
 	configOption func(o *configOptions)
 
 	configOptions struct {
-		osArgs       []string
-		envVars      map[string]string
-		ignoreOsArgs bool
+		osArgs        []string
+		envVars       map[string]string
+		ignoreOsArgs  bool
+		ignoreCfgFile bool
+		filePath      string
 	}
 )
 
@@ -43,7 +46,14 @@ func IgnoreOsArgs() configOption {
 	}
 }
 
+func WithFile(path string) configOption {
+	return func(o *configOptions) {
+		o.filePath = path
+	}
+}
+
 func New(opts ...configOption) *Config {
+	var tlsModeSet bool
 	configOptions := &configOptions{
 		osArgs: os.Args[1:],
 		envVars: map[string]string{
@@ -53,6 +63,7 @@ func New(opts ...configOption) *Config {
 			"DATABASE_DSN":      os.Getenv("DATABASE_DSN"),
 			"ENABLE_HTTPS":      os.Getenv("ENABLE_HTTPS"),
 			"SSL_PATH":          os.Getenv("SSL_PATH"),
+			"CONFIG":            os.Getenv("CONFIG"),
 		},
 	}
 
@@ -62,7 +73,7 @@ func New(opts ...configOption) *Config {
 
 	// default:
 	// s := config{"http://localhost:8080", "localhost:8080", os.Getenv("HOME") + "/storage.csv", "user=postgres password=postgres host=localhost port=5432 dbname=testdb"}
-	s := Config{baseURL: "http://localhost:8080", srvAddr: "localhost:8080"}
+	s := Config{}
 
 	if v := configOptions.envVars["BASE_URL"]; v != "" {
 		s.baseURL = v
@@ -79,8 +90,11 @@ func New(opts ...configOption) *Config {
 	if v := configOptions.envVars["SSL_PATH"]; v != "" {
 		s.sslPath = v
 	}
+	if v := configOptions.envVars["CONFIG"]; v != "" {
+		configOptions.filePath = v
+	}
 	if v := configOptions.envVars["ENABLE_HTTPS"]; v != "" {
-		s.setTLSMode(v)
+		tlsModeSet = s.setTLSMode(v)
 	}
 
 	if !configOptions.ignoreOsArgs {
@@ -93,12 +107,41 @@ func New(opts ...configOption) *Config {
 			fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 			fs.StringVar(&s.dbDSN, "d", s.dbDSN, "db connection path")
 			fs.StringVar(&s.sslPath, "p", s.sslPath, "path to folder with .key and .srt files")
+			fs.StringVar(&configOptions.filePath, "c", configOptions.filePath, "path to JSON config file")
+			fs.StringVar(&configOptions.filePath, "config", configOptions.filePath, "path to JSON config file")
 			fs.StringVar(&useTLS, "s", useTLS, "the server will use HTTPS if set to true")
 
-			s.setTLSMode(useTLS)
+			tlsModeSet = s.setTLSMode(useTLS)
 
 			fs.Parse(configOptions.osArgs)
 		}
+	}
+
+	if configOptions.filePath == "" {
+		// no path to config file is set
+		return &s
+	}
+
+	fileData, err := parseFile(configOptions.filePath)
+	if err != nil {
+		log.Printf("failed to parse config file %v: %v", configOptions.filePath, err)
+		return &s
+	}
+
+	if s.baseURL == "" {
+		s.baseURL = fileData.BaseUrl
+	}
+	if s.dbDSN == "" {
+		s.dbDSN = fileData.DatabaseDsn
+	}
+	if s.srvAddr == "" {
+		s.srvAddr = fileData.ServerAddress
+	}
+	if s.storagePath == "" {
+		s.storagePath = fileData.FileStoragePath
+	}
+	if !tlsModeSet {
+		s.useTLS = fileData.EnableHttps
 	}
 
 	return &s
@@ -119,6 +162,31 @@ func (c *Config) setTLSMode(v string) bool {
 
 		return true
 	}
+}
+
+type fileStruct struct {
+	ServerAddress   string `json:"server_address"`
+	BaseUrl         string `json:"base_url"`
+	FileStoragePath string `json:"file_storage_path"`
+	DatabaseDsn     string `json:"database_dsn"`
+	EnableHttps     bool   `json:"enable_https"`
+}
+
+func parseFile(p string) (*fileStruct, error) {
+	f, err := os.OpenFile(p, os.O_RDONLY, 0o777)
+	if err != nil {
+		return nil, err
+	}
+
+	data := fileStruct{}
+
+	dec := json.NewDecoder(f)
+	err = dec.Decode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data, nil
 }
 
 func (c Config) BaseURL() string {

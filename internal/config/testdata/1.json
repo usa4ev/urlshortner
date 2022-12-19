@@ -1,0 +1,7 @@
+{
+  "server_address": "111",
+  "base_url": "111",
+  "file_storage_path": "111",
+  "database_dsn": "111",
+  "enable_https": true
+}
