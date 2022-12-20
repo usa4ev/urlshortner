@@ -2,7 +2,9 @@ package config
 
 import (
 	"flag"
+	"log"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -10,6 +12,8 @@ type Config struct {
 	srvAddr     string
 	storagePath string
 	dbDSN       string
+	sslPath     string
+	useTLS      bool
 }
 type (
 	configOption func(o *configOptions)
@@ -47,6 +51,8 @@ func New(opts ...configOption) *Config {
 			"SERVER_ADDRESS":    os.Getenv("SERVER_ADDRESS"),
 			"FILE_STORAGE_PATH": os.Getenv("FILE_STORAGE_PATH"),
 			"DATABASE_DSN":      os.Getenv("DATABASE_DSN"),
+			"ENABLE_HTTPS":      os.Getenv("ENABLE_HTTPS"),
+			"SSL_PATH":          os.Getenv("SSL_PATH"),
 		},
 	}
 
@@ -70,20 +76,49 @@ func New(opts ...configOption) *Config {
 	if v := configOptions.envVars["DATABASE_DSN"]; v != "" {
 		s.dbDSN = v
 	}
+	if v := configOptions.envVars["SSL_PATH"]; v != "" {
+		s.sslPath = v
+	}
+	if v := configOptions.envVars["ENABLE_HTTPS"]; v != "" {
+		s.setTLSMode(v)
+	}
 
 	if !configOptions.ignoreOsArgs {
 		fs := flag.NewFlagSet("myFS", flag.ContinueOnError)
 		if !fs.Parsed() {
+			var useTLS string
+
 			fs.StringVar(&s.baseURL, "b", s.baseURL, "base for short URLs")
 			fs.StringVar(&s.srvAddr, "a", s.srvAddr, "the shortener service address")
 			fs.StringVar(&s.storagePath, "f", s.storagePath, "path to a storage file")
 			fs.StringVar(&s.dbDSN, "d", s.dbDSN, "db connection path")
+			fs.StringVar(&s.sslPath, "p", s.sslPath, "path to folder with .key and .srt files")
+			fs.StringVar(&useTLS, "s", useTLS, "the server will use HTTPS if set to true")
+
+			s.setTLSMode(useTLS)
 
 			fs.Parse(configOptions.osArgs)
 		}
 	}
 
 	return &s
+}
+
+func (c *Config) setTLSMode(v string) bool {
+	if v == "" {
+		return false
+	}
+
+	use, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Printf("failed to parse bool from ENABLE_HTTPS env var: %v", v)
+
+		return false
+	} else {
+		c.useTLS = use
+
+		return true
+	}
 }
 
 func (c Config) BaseURL() string {
@@ -100,4 +135,12 @@ func (c Config) StoragePath() string {
 
 func (c Config) DBDSN() string {
 	return c.dbDSN
+}
+
+func (c Config) SslPath() string {
+	return c.sslPath
+}
+
+func (c Config) UseTLS() bool {
+	return c.useTLS
 }

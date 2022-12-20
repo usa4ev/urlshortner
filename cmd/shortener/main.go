@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/usa4ev/urlshortner/internal/config"
@@ -54,7 +55,12 @@ func main() {
 	}()
 
 	// Run the server
-	err = server.ListenAndServe()
+	if cfg.UseTLS() {
+		err = server.ListenAndServeTLS(filepath.Join(cfg.SslPath(), "example.crt"), filepath.Join(cfg.SslPath(), "example.key"))
+	} else {
+		err = server.ListenAndServe()
+	}
+
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
 	}
