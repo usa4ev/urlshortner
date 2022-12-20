@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -48,10 +50,17 @@ func main() {
 		call := <-sig
 
 		// Trigger graceful shutdown
-		strg.Flush()
-		server.Close()
+		if err := strg.Flush(); err != nil {
+			// failed to flush storage
+			log.Printf("HTTP server Shutdown (storage flush): %v", err)
+		}
 
-		fmt.Printf("graceful shutdown, got call: %v\n", call.String())
+		if err := server.Shutdown(context.Background()); err != nil {
+			// failed to close listener
+			log.Printf("HTTP server Shutdown: %v", err)
+		}
+
+		log.Printf("graceful shutdown, got call: %v\n", call.String())
 	}()
 
 	// Run the server

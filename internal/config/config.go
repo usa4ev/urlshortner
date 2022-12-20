@@ -111,21 +111,21 @@ func New(opts ...configOption) *Config {
 			fs.StringVar(&configOptions.filePath, "config", configOptions.filePath, "path to JSON config file")
 			fs.StringVar(&useTLS, "s", useTLS, "the server will use HTTPS if set to true")
 
-			tlsModeSet = s.setTLSMode(useTLS)
-
 			fs.Parse(configOptions.osArgs)
+
+			tlsModeSet = s.setTLSMode(useTLS)
 		}
 	}
 
 	if configOptions.filePath == "" {
 		// no path to config file is set
-		return &s
+		return setDefaults(&s)
 	}
 
 	fileData, err := parseFile(configOptions.filePath)
 	if err != nil {
 		log.Printf("failed to parse config file %v: %v", configOptions.filePath, err)
-		return &s
+		return setDefaults(&s)
 	}
 
 	if s.baseURL == "" {
@@ -144,7 +144,7 @@ func New(opts ...configOption) *Config {
 		s.useTLS = fileData.EnableHttps
 	}
 
-	return &s
+	return setDefaults(&s)
 }
 
 func (c *Config) setTLSMode(v string) bool {
@@ -211,4 +211,14 @@ func (c Config) SslPath() string {
 
 func (c Config) UseTLS() bool {
 	return c.useTLS
+}
+
+func setDefaults(c *Config) *Config {
+	if c.srvAddr == "" {
+		c.srvAddr = "localhost:8080"
+	}
+	if c.baseURL == "" {
+		c.baseURL = "http://localhost:8080"
+	}
+	return c
 }

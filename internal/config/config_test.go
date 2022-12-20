@@ -49,12 +49,13 @@ func TestNewConfig(t *testing.T) {
 		},
 		{
 			name: "flags over file",
-			opts: []configOption{WithEnvVars(map[string]string{}), withOsArgs([]string{"-a", "localhost:5555", "-b", "http://localhost:5555", "-f", "/storageTest.csv", "-d", "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb"}), WithFile("./testdata/1.json")},
+			opts: []configOption{WithEnvVars(map[string]string{}), withOsArgs([]string{"-a", "localhost:5555", "-b", "http://localhost:5555", "-f", "/storageTest.csv", "-d", "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb", "-s", "false"}), WithFile("./testdata/1.json")},
 			want: Config{
 				baseURL:     "http://localhost:5555",
 				srvAddr:     "localhost:5555",
 				storagePath: "/storageTest.csv",
 				dbDSN:       "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
+				useTLS:      false,
 			},
 		},
 		{
@@ -64,12 +65,14 @@ func TestNewConfig(t *testing.T) {
 				"SERVER_ADDRESS":    "localhost:5555",
 				"FILE_STORAGE_PATH": "/storageTest.csv",
 				"DATABASE_DSN":      "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
+				"ENABLE_HTTPS":      "false",
 			})},
 			want: Config{
 				baseURL:     "http://localhost:5555",
 				srvAddr:     "localhost:5555",
 				storagePath: "/storageTest.csv",
 				dbDSN:       "user=ubuntu password=test101825 host=localhost port=5432 dbname=testdb",
+				useTLS:      false,
 			},
 		},
 	}
@@ -81,8 +84,3 @@ func TestNewConfig(t *testing.T) {
 		})
 	}
 }
-
-//func getwd() string {
-//	s, _ := os.Getwd()
-//	return s
-//}
