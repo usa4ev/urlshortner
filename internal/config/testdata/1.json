@@ -3,5 +3,6 @@
   "base_url": "111",
   "file_storage_path": "111",
   "database_dsn": "111",
-  "enable_https": true
+  "enable_https": true,
+  "ssl_path": "111"
 }
