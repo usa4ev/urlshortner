@@ -14,10 +14,17 @@ import (
 	"time"
 )
 
+const defaultPath = "./ssl"
+
 func main() {
-	path := os.Args[1]
+	var path string
+
+	if len(os.Args) > 1 {
+		path = os.Args[1]
+	}
+
 	if path == "" {
-		log.Fatal("output path is not set")
+		path = defaultPath
 	}
 
 	cert := &x509.Certificate{
@@ -45,7 +52,7 @@ func main() {
 	}
 
 	// encode certificate and write to a file
-	crtFile, err := os.OpenFile(filepath.Join(path, ".crt"), os.O_CREATE|os.O_WRONLY, 0o777)
+	crtFile, err := os.OpenFile(filepath.Join(path, ".crt"), os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,7 +66,7 @@ func main() {
 	}
 
 	// encode key and write to a file
-	keyFile, err := os.OpenFile(filepath.Join(path, ".key"), os.O_CREATE|os.O_RDWR, 0o777)
+	keyFile, err := os.OpenFile(filepath.Join(path, ".key"), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		log.Fatal(err)
 	}
