@@ -119,7 +119,7 @@ func (srv *Server) authInterceptor(ctx context.Context, req interface{}, info *g
 	var token, userID string
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		values := md.Get("userID")
+		values := md.Get("authorization")
 		if len(values) > 0 {
 			token = values[0]
 		}
@@ -133,7 +133,7 @@ func (srv *Server) authInterceptor(ctx context.Context, req interface{}, info *g
 		}
 	} else {
 		//token is not set, open new session
-		userID, token, err = auth.OpenSession(srv.sessionMgr)
+		userID, _, err = auth.OpenSession(srv.sessionMgr)
 		if err != nil {
 			return nil, status.Error(codes.Unauthenticated, "failed to open new session")
 		}
@@ -176,7 +176,7 @@ func (srv *Server) Shorten(ctx context.Context, in *ps.ShortenRequest) (*ps.Shor
 func getUserID(ctx context.Context) (string, error) {
 	val := metadata.ValueFromIncomingContext(ctx, "user_id")
 	if len(val) != 1 || val[0] == "" {
-		return "", fmt.Errorf("user ID is not defined.")
+		return "", fmt.Errorf("user ID is not defined")
 	}
 	return val[0], nil
 }

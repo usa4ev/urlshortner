@@ -421,7 +421,7 @@ func (srv *Server) stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := bytes.NewBuffer(nil)
-	err = json.NewEncoder(buf).Encode(buf)
+	err = json.NewEncoder(buf).Encode(data)
 	if err != nil {
 		http.Error(
 			w,

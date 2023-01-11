@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -64,13 +63,6 @@ func newTestSrv(cfg *conf.Config) (*Server, error) {
 	}
 
 	s := shortener.NewShortener(cfg, strg)
-
-	srv := Server{}
-
-	srv.cfg = cfg
-	srv.shortener = s
-	srv.sessionMgr = strg
-	srv.sfgr = new(singleflight.Group)
 
 	ts := New(cfg, s, strg)
 

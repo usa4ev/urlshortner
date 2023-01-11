@@ -23,7 +23,7 @@ func OpenSession(s SessionStoreLoader) (string, string, error) {
 	usrID := uuid.New().String()
 	openToken, err := generateRandom(16)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create token for user ID: %v \n%v\n", usrID, err.Error())
+		return "", "", fmt.Errorf("failed to create token for user ID: %v \n%v", usrID, err.Error())
 	}
 
 	token, err := sealToken(openToken)
