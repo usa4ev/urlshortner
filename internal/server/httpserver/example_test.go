@@ -1,13 +1,15 @@
-package shortener
+package httpserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/router"
-	"github.com/usa4ev/urlshortner/internal/storage"
 	"io"
 	"net/http"
+
+	conf "github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/shortener"
+	"github.com/usa4ev/urlshortner/internal/storage"
 )
 
 const (
@@ -20,17 +22,17 @@ func Example() {
 		"SERVER_ADDRESS": addr,
 		"BASE_URL":       url}
 
-	cfg := config.New(config.IgnoreOsArgs(),
-		config.WithEnvVars(vars))
+	cfg := conf.New(conf.IgnoreOsArgs(),
+		conf.WithEnvVars(vars))
 
 	strg, _ := storage.New(cfg)
 
-	myShortner := NewShortener(cfg, strg)
+	myShortner := shortener.NewShortener(cfg, strg)
 
-	r := router.NewRouter(myShortner)
+	server := New(cfg, myShortner, strg)
 
-	server := &http.Server{Addr: cfg.SrvAddr(), Handler: r}
 	server.ListenAndServe()
+	defer server.Shutdown(context.Background())
 
 	// Getting a short URL
 	res, _ := http.Post(url+"/",

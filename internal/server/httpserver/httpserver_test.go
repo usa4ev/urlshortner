@@ -1,4 +1,4 @@
-package shortener_test
+package httpserver
 
 import (
 	"bytes"
@@ -13,18 +13,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/go-chi/chi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
+
+	conf "github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
 	ctXML  string = "application/xml"
-	ctJSON string = "application/json"
 	ctText string = "text/plain"
 )
 
@@ -47,10 +48,34 @@ func newTestClient(ts *httptest.Server) *http.Client {
 	return cl
 }
 
-func newTestSrv(srvAddr string, s *shortener.MyShortener) *httptest.Server {
-	r := router.NewRouter(s)
+func newTestSrv(cfg *conf.Config) (*httptest.Server, error) {
+	strg, err := storage.New(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-	l, err := net.Listen("tcp", srvAddr)
+	s := shortener.NewShortener(cfg, strg)
+
+	srv := Server{}
+
+	srv.cfg = cfg
+	srv.shortener = s
+	srv.sessionMgr = strg
+	srv.sfgr = new(singleflight.Group)
+	srv.handlers = []router.HandlerDesc{
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{gzipMW}},
+	}
+
+	r := router.NewRouter(&srv)
+
+	l, err := net.Listen("tcp", cfg.SrvAddr())
 	if err != nil {
 		panic(fmt.Sprintf("httptest: failed to listen on %v: %v", "localhost:8080", err))
 	}
@@ -59,7 +84,7 @@ func newTestSrv(srvAddr string, s *shortener.MyShortener) *httptest.Server {
 	ts.Listener = l
 	ts.Start()
 
-	return ts
+	return ts, nil
 }
 
 func getTests(baseURL string) tests {
@@ -81,13 +106,13 @@ func getTests(baseURL string) tests {
 
 func Test_MakeShort(t *testing.T) {
 	cfg := testcfg()
-	strg, err := storage.New(cfg)
-	require.NoError(t, err)
 
-	s := shortener.NewShortener(cfg, strg)
 	cases := getTests(cfg.BaseURL())
 	resetStorage(cfg.StoragePath(), cfg.DBDSN())
-	ts := newTestSrv(cfg.SrvAddr(), s)
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
+	defer ts.Close()
+
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -134,12 +159,13 @@ func Test_MakeShort(t *testing.T) {
 
 func Test_MakeShortJSON(t *testing.T) {
 	cfg := testcfg()
-	strg, err := storage.New(cfg)
-	require.NoError(t, err)
 
-	s := shortener.NewShortener(cfg, strg)
 	cases := getTests(cfg.BaseURL())
-	ts := newTestSrv(cfg.SrvAddr(), s)
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
+	defer ts.Close()
+
 	cl := newTestClient(ts)
 
 	defer ts.Close()
@@ -253,14 +279,11 @@ func Test_MakeShortJSON(t *testing.T) {
 
 func Test_MakeLong_EmptyStorage(t *testing.T) {
 	cfg := testcfg()
-	strg, err := storage.New(cfg)
-	require.NoError(t, err)
 
-	s := shortener.NewShortener(cfg, strg)
-	resetStorage(cfg.StoragePath(), cfg.DBDSN())
 	cases := getTests(cfg.BaseURL())
-
-	ts := newTestSrv(cfg.SrvAddr(), s)
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
 	defer ts.Close()
 
 	t.Run("Empty storage", func(t *testing.T) {
@@ -275,12 +298,11 @@ func Test_MakeLong_EmptyStorage(t *testing.T) {
 
 func Test_GetURLsByUser(t *testing.T) {
 	cfg := testcfg()
-	strg, err := storage.New(cfg)
-	require.NoError(t, err)
 
-	s := shortener.NewShortener(cfg, strg)
 	cases := getTests(cfg.BaseURL())
-	ts := newTestSrv(cfg.SrvAddr(), s)
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
@@ -336,12 +358,46 @@ func Test_GetURLsByUser(t *testing.T) {
 
 func Test_DeleteBatch(t *testing.T) {
 	cfg := testcfg()
+
+	cases := getTests(cfg.BaseURL())
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+
+	// New test server since we have to flush storage this time
 	strg, err := storage.New(cfg)
 	require.NoError(t, err)
 
 	s := shortener.NewShortener(cfg, strg)
-	cases := getTests(cfg.BaseURL())
-	ts := newTestSrv(cfg.SrvAddr(), s)
+
+	srv := Server{}
+
+	srv.cfg = cfg
+	srv.shortener = s
+	srv.sessionMgr = strg
+	srv.sfgr = new(singleflight.Group)
+	srv.handlers = []router.HandlerDesc{
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
+		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{gzipMW}},
+	}
+
+	r := router.NewRouter(&srv)
+
+	l, err := net.Listen("tcp", cfg.SrvAddr())
+	if err != nil {
+		panic(fmt.Sprintf("httptest: failed to listen on %v: %v", "localhost:8080", err))
+	}
+
+	ts := httptest.NewUnstartedServer(r)
+	ts.Listener = l
+	ts.Start()
+	///
+
+	require.NoError(t, err)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
@@ -424,12 +480,11 @@ func Test_DeleteBatch(t *testing.T) {
 
 func Test_MakeLong(t *testing.T) {
 	cfg := testcfg()
-	strg, err := storage.New(cfg)
-	require.NoError(t, err)
 
-	s := shortener.NewShortener(cfg, strg)
 	cases := getTests(cfg.BaseURL())
-	ts := newTestSrv(cfg.SrvAddr(), s)
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
 	defer ts.Close()
 
 	cl := newTestClient(ts)
@@ -509,13 +564,13 @@ func resetStorage(path, dsn string) error {
 	return nil
 }
 
-func testcfg() *config.Config {
-	return config.New(config.WithEnvVars(map[string]string{
+func testcfg() *conf.Config {
+	return conf.New(conf.WithEnvVars(map[string]string{
 		"BASE_URL":          "http://localhost:8080",
 		"SERVER_ADDRESS":    "localhost:8080",
 		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
 	}),
-		config.IgnoreOsArgs())
+		conf.IgnoreOsArgs())
 }
 
 //func testcfgDB() *cfg.cfg {

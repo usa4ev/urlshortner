@@ -16,12 +16,15 @@ const (
 )
 
 type Config struct {
-	baseURL     string
-	srvAddr     string
-	storagePath string
-	dbDSN       string
-	sslPath     string
-	useTLS      bool
+	baseURL       string
+	srvAddr       string
+	storagePath   string
+	dbDSN         string
+	sslPath       string
+	trustedSubnet string
+	useTLS        bool
+	useGRPC       bool
+	grpcModeSet   bool
 }
 
 func New(opts ...configOption) *Config {
@@ -67,9 +70,13 @@ func fillCfg(configs []*pConfig) *Config {
 		if pCfg.sslPath != "" {
 			cfg.sslPath = pCfg.sslPath
 		}
+		if pCfg.trustedSubnet != "" {
+			cfg.trustedSubnet = pCfg.trustedSubnet
+		}
 		if pCfg.tlsModeSet {
 			cfg.useTLS = pCfg.useTLS
 		}
+
 	}
 
 	return cfg.setDefaults()
@@ -97,6 +104,14 @@ func (c Config) SslPath() string {
 
 func (c Config) UseTLS() bool {
 	return c.useTLS
+}
+
+func (c Config) TrustedSubnet() string {
+	return c.trustedSubnet
+}
+
+func (c Config) GRPC() bool {
+	return false
 }
 
 func (c *Config) setDefaults() *Config {
@@ -141,11 +156,17 @@ func fromEnv(envVars map[string]string) *pConfig {
 	if v := envVars["DATABASE_DSN"]; v != "" {
 		pc.dbDSN = v
 	}
+	if v := envVars["TRUSTED_SUBNET"]; v != "" {
+		pc.trustedSubnet = v
+	}
 	if v := envVars["SSL_PATH"]; v != "" {
 		pc.sslPath = v
 	}
 	if v := envVars["ENABLE_HTTPS"]; v != "" {
 		pc.setTLSMode(v)
+	}
+	if v := envVars["USE_GRPC"]; v != "" {
+		pc.setGrpcMode(v)
 	}
 
 	return &pc
@@ -155,20 +176,23 @@ func fromArgs(osArgs []string, filePath *string) *pConfig {
 	pc := newpConfig()
 	fs := flag.NewFlagSet("myFS", flag.ContinueOnError)
 	if !fs.Parsed() {
-		var useTLS string
+		var useTLS, useGRPC string
 
 		fs.StringVar(&pc.baseURL, "b", "", "base for short URLs")
 		fs.StringVar(&pc.srvAddr, "a", "", "the shortener service address")
 		fs.StringVar(&pc.storagePath, "f", "", "path to a storage file")
 		fs.StringVar(&pc.dbDSN, "d", "", "db connection path")
+		fs.StringVar(&pc.trustedSubnet, "t", "", "trusted subnet subnet to accept calls without authentication")
 		fs.StringVar(&pc.sslPath, "p", "", "path to folder with .key and .srt files")
 		fs.StringVar(filePath, "c", *filePath, "path to JSON config file")
 		fs.StringVar(filePath, "config", *filePath, "path to JSON config file")
 		fs.StringVar(&useTLS, "s", useTLS, "the server will use HTTPS if set to true")
+		fs.StringVar(&useGRPC, "r", useTLS, "the server will start as gRPC-server")
 
 		fs.Parse(osArgs)
 
 		pc.setTLSMode(useTLS)
+		pc.setGrpcMode(useGRPC)
 	}
 
 	return &pc
@@ -189,7 +213,10 @@ func fromFile(filePath string) *pConfig {
 	pc.storagePath = fileData.FileStoragePath
 	pc.useTLS = fileData.EnableHttps
 	pc.sslPath = fileData.SslPath
+	pc.trustedSubnet = fileData.TrustedSubnet
 	pc.tlsModeSet = true
+	pc.useGRPC = fileData.UseGrpc
+	pc.grpcModeSet = true
 
 	return &pc
 }
@@ -199,8 +226,10 @@ type fileStruct struct {
 	BaseUrl         string `json:"base_url"`
 	FileStoragePath string `json:"file_storage_path"`
 	DatabaseDsn     string `json:"database_dsn"`
+	TrustedSubnet   string `json:"trusted_subnet"`
 	EnableHttps     bool   `json:"enable_https"`
 	SslPath         string `json:"ssl_path"`
+	UseGrpc         bool   `json:"use_grpc"`
 }
 
 func parseFile(p string) (*fileStruct, error) {
@@ -233,6 +262,23 @@ func (pc *pConfig) setTLSMode(v string) {
 	} else {
 		pc.useTLS = use
 		pc.tlsModeSet = true
+		return
+	}
+}
+
+func (pc *pConfig) setGrpcMode(v string) {
+	if v == "" {
+		return
+	}
+
+	use, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Printf("failed to parse bool from ENABLE_HTTPS env var: %v", v)
+
+		return
+	} else {
+		pc.useGRPC = use
+		pc.grpcModeSet = true
 		return
 	}
 }

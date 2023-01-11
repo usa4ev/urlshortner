@@ -435,6 +435,70 @@ func Pingdb(dsn string) error {
 	return err
 }
 
+func (db database) CountUsers() (int, error) {
+	var count int
+	query := "SELECT COUNT(id) FROM users"
+
+	ctx, cancelfunc := context.WithTimeout(db.ctx, 5*time.Second)
+	defer cancelfunc()
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		log.Printf("Error %s when counting users", err)
+		return 0, err
+	}
+
+	if rows.Err() != nil {
+		return 0, rows.Err()
+	}
+
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, nil
+	}
+
+	err = rows.Scan(&count)
+	if err != nil {
+		log.Printf("Error %s when scanning query results in CountUsers()", err)
+		return 0, err
+	}
+
+	return count, err
+}
+
+func (db database) CountURLs() (int, error) {
+	var count int
+	query := "SELECT COUNT(id) FROM urls"
+
+	ctx, cancelfunc := context.WithTimeout(db.ctx, 5*time.Second)
+	defer cancelfunc()
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		log.Printf("Error %s when counting URLs", err)
+		return 0, err
+	}
+
+	if rows.Err() != nil {
+		return 0, rows.Err()
+	}
+
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, nil
+	}
+
+	err = rows.Scan(&count)
+	if err != nil {
+		log.Printf("Error %s when scanning query results in CountURLs()", err)
+		return 0, err
+	}
+
+	return count, err
+}
+
 func (db database) Flush() error {
 	db.buffer.mx.Lock()
 	defer db.buffer.mx.Unlock()
