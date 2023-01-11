@@ -99,7 +99,7 @@ func (db database) initDB() error {
 
 func (db *database) initBuffer() {
 	buf := bufio.NewWriter(db)
-	t := time.NewTicker(30 * time.Second)
+	t := time.NewTicker(5 * time.Second)
 
 	go func() {
 		for {

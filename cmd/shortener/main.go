@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/usa4ev/urlshortner/internal/config"
@@ -47,14 +50,26 @@ func main() {
 		call := <-sig
 
 		// Trigger graceful shutdown
-		strg.Flush()
-		server.Close()
+		if err := strg.Flush(); err != nil {
+			// failed to flush storage
+			log.Printf("HTTP server Shutdown (storage flush): %v", err)
+		}
 
-		fmt.Printf("graceful shutdown, got call: %v\n", call.String())
+		if err := server.Shutdown(context.Background()); err != nil {
+			// failed to close listener
+			log.Printf("HTTP server Shutdown: %v", err)
+		}
+
+		log.Printf("graceful shutdown, got call: %v\n", call.String())
 	}()
 
 	// Run the server
-	err = server.ListenAndServe()
+	if cfg.UseTLS() {
+		err = server.ListenAndServeTLS(filepath.Join(cfg.SslPath(), "example.crt"), filepath.Join(cfg.SslPath(), "example.key"))
+	} else {
+		err = server.ListenAndServe()
+	}
+
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
 	}
