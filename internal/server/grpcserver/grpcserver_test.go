@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,15 @@ func newTestSrv(cfg *conf.Config) (*Server, error) {
 
 	ts := New(cfg, s, strg)
 
-	go func() { log.Fatal(ts.ListenAndServe()) }()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		wg.Done()
+		log.Fatal(ts.listenAndServe())
+	}()
+
+	wg.Wait()
 
 	return ts, nil
 }

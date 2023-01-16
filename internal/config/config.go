@@ -38,7 +38,7 @@ func New(opts ...configOption) *Config {
 		configs[priorityOsArgs] = fromArgs(configOptions.osArgs, &configOptions.filePath)
 	}
 
-	if configOptions.filePath != "" {
+	if !configOptions.ignoreCfgFile && configOptions.filePath != "" {
 		configs[priorityFile] = fromFile(configOptions.filePath)
 	}
 
@@ -111,7 +111,7 @@ func (c Config) TrustedSubnet() string {
 }
 
 func (c Config) GRPC() bool {
-	return false
+	return c.useGRPC
 }
 
 func (c *Config) setDefaults() *Config {
@@ -187,7 +187,7 @@ func fromArgs(osArgs []string, filePath *string) *pConfig {
 		fs.StringVar(filePath, "c", *filePath, "path to JSON config file")
 		fs.StringVar(filePath, "config", *filePath, "path to JSON config file")
 		fs.StringVar(&useTLS, "s", useTLS, "the server will use HTTPS if set to true")
-		fs.StringVar(&useGRPC, "r", useTLS, "the server will start as gRPC-server")
+		fs.StringVar(&useGRPC, "r", useGRPC, "the server will start as gRPC-server")
 
 		fs.Parse(osArgs)
 
@@ -273,7 +273,7 @@ func (pc *pConfig) setGrpcMode(v string) {
 
 	use, err := strconv.ParseBool(v)
 	if err != nil {
-		log.Printf("failed to parse bool from ENABLE_HTTPS env var: %v", v)
+		log.Printf("failed to parse bool of grpc mode flag: %v", v)
 
 		return
 	} else {

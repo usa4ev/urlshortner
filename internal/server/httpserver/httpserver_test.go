@@ -20,6 +20,7 @@ import (
 
 	conf "github.com/usa4ev/urlshortner/internal/config"
 	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/server/httpserver/middleware"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
@@ -63,14 +64,14 @@ func newTestSrv(cfg *conf.Config) (*httptest.Server, error) {
 	srv.sessionMgr = strg
 	srv.sfgr = new(singleflight.Group)
 	srv.handlers = []router.HandlerDesc{
-		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{gzipMW}},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{middleware.GzipMW}},
 	}
 
 	r := router.NewRouter(&srv)
@@ -375,14 +376,14 @@ func Test_DeleteBatch(t *testing.T) {
 	srv.sessionMgr = strg
 	srv.sfgr = new(singleflight.Group)
 	srv.handlers = []router.HandlerDesc{
-		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{gzipMW, srv.authMW}},
-		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{gzipMW}},
+		{Method: "POST", Path: "/", Handler: http.HandlerFunc(srv.makeShort), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/{id}", Handler: http.HandlerFunc(srv.makeLong), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "POST", Path: "/api/shorten", Handler: http.HandlerFunc(srv.makeShortJSON), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "POST", Path: "/api/shorten/batch", Handler: http.HandlerFunc(srv.shortenBatchJSON), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.makeLongByUser), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "DELETE", Path: "/api/user/urls", Handler: http.HandlerFunc(srv.deleteBatch), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/ping", Handler: http.HandlerFunc(srv.pingStorage), Middlewares: chi.Middlewares{middleware.GzipMW, middleware.AuthMW(strg)}},
+		{Method: "GET", Path: "/api/internal/stats", Handler: http.HandlerFunc(srv.stats), Middlewares: chi.Middlewares{middleware.GzipMW}},
 	}
 
 	r := router.NewRouter(&srv)
@@ -569,8 +570,59 @@ func testcfg() *conf.Config {
 		"BASE_URL":          "http://localhost:8080",
 		"SERVER_ADDRESS":    "localhost:8080",
 		"FILE_STORAGE_PATH": os.Getenv("HOME") + "/storage.csv",
+		"TRUSTED_SUBNET":    "192.168.0.0/24",
 	}),
 		conf.IgnoreOsArgs())
+}
+
+func Test_Stats(t *testing.T) {
+	cfg := testcfg()
+
+	cases := getTests(cfg.BaseURL())
+	resetStorage(cfg.StoragePath(), cfg.DBDSN())
+	ts, err := newTestSrv(cfg)
+	require.NoError(t, err)
+	defer ts.Close()
+
+	cl := newTestClient(ts)
+
+	for _, tt := range cases {
+		_, err := cl.Post(ts.URL, ctText, bytes.NewBuffer([]byte(tt.url)))
+		require.NoError(t, err, "url: %v", tt.url)
+	}
+
+	t.Run("trusted call", func(t *testing.T) {
+		
+		req, _ := http.NewRequest("GET", cfg.BaseURL() + "/api/internal/stats", nil)
+		req.Header.Add("X-Real-IP", "192.168.0.1")
+
+		res, err := cl.Do(req)
+		require.NoError(t, err, "/stats call failed")
+
+		message := statsData{}
+		dec := json.NewDecoder(res.Body)
+		err = dec.Decode(&message)
+		if err != nil {
+			message, _ := io.ReadAll(res.Body)
+			require.NoError(t, err, "failed to parse message:%v", string(message))
+		}
+
+		require.NoError(t, res.Body.Close())
+
+		require.Equal(t, message.Urls, len(cases))
+		require.Equal(t, message.Users, len(cases))
+	})
+
+	t.Run("untrusted call", func(t *testing.T) {
+		
+		req, _ := http.NewRequest("GET", cfg.BaseURL() + "/api/internal/stats", nil)
+		req.Header.Add("X-Real-IP", "100.168.0.1")
+
+		res, err := cl.Do(req)
+		require.NoError(t, err, "/stats call failed")
+
+		require.Equal(t, http.StatusForbidden, res.StatusCode) 
+	})
 }
 
 //func testcfgDB() *cfg.cfg {

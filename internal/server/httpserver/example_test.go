@@ -31,7 +31,7 @@ func Example() {
 
 	server := New(cfg, myShortner, strg)
 
-	server.ListenAndServe()
+	server.Run()
 	defer server.Shutdown(context.Background())
 
 	// Getting a short URL

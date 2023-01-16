@@ -1,3 +1,4 @@
+// Package grpcserver is a grpc implementation of shortener server.
 package grpcserver
 
 import (
@@ -6,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path/filepath"
 
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
@@ -13,6 +15,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/usa4ev/urlshortner/internal/server/auth"
@@ -22,7 +25,14 @@ import (
 	"github.com/usa4ev/urlshortner/internal/storage/storageerrors"
 )
 
-// UsersServer поддерживает все необходимые методы сервера.
+type config interface {
+	UseTLS() bool
+	SslPath() string
+	DBDSN() string
+	SrvAddr() string
+	TrustedSubnet() string
+}
+
 type Server struct {
 	ps.ShortenerServer
 
@@ -31,13 +41,6 @@ type Server struct {
 	cfg        config
 	sfgr       *singleflight.Group
 	gs         *grpc.Server
-}
-
-type config interface {
-	UseTLS() bool
-	SslPath() string
-	DBDSN() string
-	SrvAddr() string
 }
 
 func New(c config, s shortener.Shortener, sm auth.SessionStoreLoader) *Server {
@@ -51,7 +54,7 @@ func New(c config, s shortener.Shortener, sm auth.SessionStoreLoader) *Server {
 	return &srv
 }
 
-func (srv *Server) ListenAndServe() error {
+func (srv *Server) listenAndServe() error {
 	listen, err := net.Listen("tcp", srv.cfg.SrvAddr())
 	if err != nil {
 		return err
@@ -72,7 +75,7 @@ func (srv *Server) ListenAndServe() error {
 	return nil
 }
 
-func (srv *Server) ListenAndServeTLS(cert, key string) error {
+func (srv *Server) listenAndServeTLS(cert, key string) error {
 	interceptor := grpc.UnaryServerInterceptor(srv.authInterceptor)
 
 	crt, err := tls.LoadX509KeyPair(cert, key)
@@ -101,6 +104,17 @@ func (srv *Server) ListenAndServeTLS(cert, key string) error {
 	}
 
 	return nil
+}
+
+func (srv *Server) Run() error {
+	// Run the server
+	if srv.cfg.UseTLS() {
+		return srv.listenAndServeTLS(
+			filepath.Join(srv.cfg.SslPath(), "example.crt"),
+			filepath.Join(srv.cfg.SslPath(), "example.key"))
+	} else {
+		return srv.listenAndServe()
+	}
 }
 
 func (srv *Server) Shutdown(ctx context.Context) error {
@@ -275,6 +289,35 @@ func (srv *Server) DeleteBatch(ctx context.Context, in *ps.DeleteBatchRequest) (
 
 func (srv *Server) Stats(ctx context.Context, in *ps.Dummy) (*ps.StatsResponse, error) {
 	res := ps.StatsResponse{}
+
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		res.Error = "failed to get peer from ctx"
+		return &res, status.Error(codes.Unauthenticated, res.Error)
+
+	}
+	if pr.Addr == net.Addr(nil) {
+		res.Error = "failed to get peer address"
+		return &res, status.Error(codes.Unauthenticated, res.Error)
+
+	}
+
+	//parse subnet string
+	_, subnet, err := net.ParseCIDR(srv.cfg.TrustedSubnet())
+	if err != nil {
+		res.Error = fmt.Sprintf("failed to parse trusted subnet from config: %v", srv.cfg.TrustedSubnet())
+		return &res, status.Error(codes.Internal, res.Error)
+
+	}
+
+	ip := net.ParseIP(pr.Addr.String())
+
+	//check if ip belongs subnet
+	if !subnet.Contains(ip) {
+		res.Error = "call from unathorized subnet"
+		return &res, status.Error(codes.Unauthenticated, res.Error)
+	}
+
 	//use SingleFlight
 	urls, err, _ := srv.sfgr.Do("CountURLs",
 		func() (interface{}, error) {

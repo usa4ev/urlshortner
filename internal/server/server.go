@@ -11,8 +11,7 @@ import (
 
 type (
 	Server interface {
-		ListenAndServe() error
-		ListenAndServeTLS(cert, key string) error
+		Run() error
 		Shutdown(ctx context.Context) error
 	}
 

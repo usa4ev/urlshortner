@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
-	"github.com/usa4ev/urlshortner/internal/server"
-
 	"github.com/usa4ev/urlshortner/internal/config"
+	"github.com/usa4ev/urlshortner/internal/server"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
@@ -64,12 +62,7 @@ func main() {
 		log.Printf("graceful shutdown, got call: %v\n", call.String())
 	}()
 
-	// Run the server
-	if cfg.UseTLS() {
-		err = srv.ListenAndServeTLS(filepath.Join(cfg.SslPath(), "example.crt"), filepath.Join(cfg.SslPath(), "example.key"))
-	} else {
-		err = srv.ListenAndServe()
-	}
+	srv.Run()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
