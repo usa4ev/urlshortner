@@ -15,7 +15,7 @@ type (
 		storerLoader
 	}
 
-	pairs []Pair
+	Pairs []Pair
 
 	Pair struct {
 		ShortURL    string `json:"short_url"`
@@ -29,10 +29,12 @@ type (
 
 	storerLoader interface {
 		LoadURL(id string) (string, error)
-		LoadUrlsByUser(func(id, url string), string) error
+		LoadUrlsByUser(makeFunc func(id, url string), userID string) error
 		StoreURL(id, url, userid string) error
 		LoadUser(session string) (string, error)
 		StoreSession(id, session string) error
+		CountUsers() (int, error)
+		CountURLs() (int, error)
 		Flush() error
 		DeleteURLs(userID string, ids []string) error
 	}
@@ -41,6 +43,7 @@ type (
 // New returns new storage created using config
 // to define the implementation.
 func New(c config) (*Storage, error) {
+
 	dsn := c.DBDSN()
 	if dsn == "" {
 		s, err := inmemory.New(c)
@@ -62,8 +65,8 @@ func New(c config) (*Storage, error) {
 
 // LoadByUser wraps LoadUrlsByUser storage method
 //	to pass down the common appending function.
-func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (pairs, error) {
-	p := pairs{}
+func (s Storage) LoadByUser(makeURL func(id string) string, userID string) (Pairs, error) {
+	p := Pairs{}
 	f := func(id, url string) {
 		p = append(p, Pair{makeURL(id), url})
 	}

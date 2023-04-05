@@ -1,0 +1,72 @@
+syntax = "proto3";
+package gRPCServer;
+
+option go_package = "grpcserver/protoshortener";
+
+message ShortenRequest{
+  string url = 1;
+}
+
+message ShortenResponse{
+  string id = 1;
+  string error = 2;
+}
+
+message ShortenBatchRequest{
+  repeated URLwId data = 1;
+}
+
+message ShortenBatchResponse{
+  repeated URLwId data = 1;
+  string error = 2;
+}
+
+message URLwId{
+  string url = 1;
+  string id = 2;
+}
+
+message GetLongRequest{
+  string id = 1;
+}
+
+message GetLongResponse{
+  string url = 1;
+  string error = 2;
+}
+
+message GetLongByUserResponse{
+  repeated string urls = 1;
+  string error = 2;
+}
+
+message DeleteBatchRequest{
+  repeated string ids = 1;
+}
+
+message DeleteBatchResponse{
+  string error = 1;
+}
+
+message StatsResponse{
+  int32 urls = 1;
+  int32 users = 2;
+  string error = 3;
+}
+
+message PingStorageResponse{
+  string error = 1;
+}
+
+// for when we don't need in or out messages
+message Dummy{}
+
+service Shortener{
+  rpc Shorten(ShortenRequest) returns(ShortenResponse);
+  rpc ShortenBatch(ShortenBatchRequest) returns(ShortenBatchResponse);
+  rpc GetLong(GetLongRequest) returns(GetLongResponse);
+  rpc GetLongByUser(Dummy) returns(GetLongByUserResponse);
+  rpc DeleteBatch(DeleteBatchRequest) returns(DeleteBatchResponse);
+  rpc Stats(Dummy) returns(StatsResponse);
+  rpc PingStorage(Dummy) returns(PingStorageResponse);
+}

@@ -99,6 +99,30 @@ func Test_ims_StoreLoadURL(t *testing.T) {
 		}
 		assert.Equal(t, c, len(p), "got wrong number of url's by user %v", testUserID)
 	})
+
+	t.Run("Count URL's", func(t *testing.T) {
+		got, err := storage.CountURLs()
+		if err != nil {
+			require.NoError(t, err, "CountURLs() error")
+		}
+		assert.Equal(t, len(tests), got, "got wrong number of URLs")
+	})
+
+	t.Run("Count users", func(t *testing.T) {
+		got, err := storage.CountUsers()
+		if err != nil {
+			require.NoError(t, err, "CountUsers() error")
+		}
+
+		tUsers := make(map[string]struct{})
+		for _, tt := range tests {
+			if _, ok := tUsers[tt.userid]; !ok {
+				tUsers[tt.userid] = struct{}{}
+			}
+		}
+
+		assert.Equal(t, len(tUsers), got, "got wrong number of users")
+	})
 }
 
 func Example() {

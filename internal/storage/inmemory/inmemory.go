@@ -114,6 +114,33 @@ func (s ims) StoreSession(id, session string) error {
 	return nil
 }
 
+func (s ims) CountUsers() (int, error) {
+	users := make(map[string]struct{})
+
+	s.data.Range(func(_, v interface{}) bool {
+		row := v.(storer)
+		if _, ok := users[row.userID]; !ok {
+			users[row.userID] = struct{}{}
+		}
+
+		return true
+	})
+
+	return len(users), nil
+}
+
+func (s ims) CountURLs() (int, error) {
+	length := 0
+
+	s.data.Range(func(_, _ interface{}) bool {
+		length++
+
+		return true
+	})
+
+	return length, nil
+}
+
 // Flush writes data from the storage to a file if file manager is set.
 func (s ims) Flush() error {
 	if s.fileManager != nil {

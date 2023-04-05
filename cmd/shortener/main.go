@@ -8,11 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/usa4ev/urlshortner/internal/config"
-	"github.com/usa4ev/urlshortner/internal/router"
+	"github.com/usa4ev/urlshortner/internal/server"
 	"github.com/usa4ev/urlshortner/internal/shortener"
 	"github.com/usa4ev/urlshortner/internal/storage"
 )
@@ -39,8 +38,8 @@ func main() {
 	}
 
 	myShortener := shortener.NewShortener(cfg, strg)
-	r := router.NewRouter(myShortener)
-	server := &http.Server{Addr: cfg.SrvAddr(), Handler: r}
+
+	srv := server.New(cfg, myShortener, strg)
 
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
@@ -55,7 +54,7 @@ func main() {
 			log.Printf("HTTP server Shutdown (storage flush): %v", err)
 		}
 
-		if err := server.Shutdown(context.Background()); err != nil {
+		if err := srv.Shutdown(context.Background()); err != nil {
 			// failed to close listener
 			log.Printf("HTTP server Shutdown: %v", err)
 		}
@@ -63,12 +62,7 @@ func main() {
 		log.Printf("graceful shutdown, got call: %v\n", call.String())
 	}()
 
-	// Run the server
-	if cfg.UseTLS() {
-		err = server.ListenAndServeTLS(filepath.Join(cfg.SslPath(), "example.crt"), filepath.Join(cfg.SslPath(), "example.key"))
-	} else {
-		err = server.ListenAndServe()
-	}
+	srv.Run()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err.Error())
